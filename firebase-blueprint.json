@@ -1,0 +1,148 @@
+{
+  "entities": {
+    "users": {
+      "title": "User",
+      "description": "Registered user profile and authentication metadata",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique user ID" },
+        "name": { "type": "string", "description": "Full name" },
+        "email": { "type": "string", "format": "email", "description": "User email address" },
+        "phone": { "type": "string", "description": "Phone number" },
+        "country": { "type": "string", "description": "Country of residence" },
+        "role": { "type": "string", "enum": ["user", "support", "admin", "superadmin"], "description": "Access level role" },
+        "isBlocked": { "type": "boolean", "description": "Account freeze or block status" },
+        "emailVerified": { "type": "boolean", "description": "Email verification status" },
+        "accountNumber": { "type": "string", "description": "Assigned primary account number" },
+        "createdAt": { "type": "string", "description": "ISO timestamp of registration" },
+        "lastLogin": { "type": "string", "description": "ISO timestamp of last login" },
+        "transferFreezeMessage": { "type": "string", "description": "Admin-configured transfer freeze or error notice" }
+      },
+      "required": ["id", "name", "email"]
+    },
+    "accounts": {
+      "title": "Account",
+      "description": "Test Environment banking account holding simulated balances",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Account identifier" },
+        "userId": { "type": "string", "description": "Associated user ID" },
+        "accountNumber": { "type": "string", "description": "Public account number" },
+        "fullName": { "type": "string", "description": "Account holder full name" },
+        "email": { "type": "string", "format": "email", "description": "Account holder email" },
+        "currency": { "type": "string", "description": "Currency code (USD, GBP, EUR)" },
+        "simulatedBalance": { "type": "number", "description": "Current simulated balance in Test Environment" },
+        "savingsBalance": { "type": "number", "description": "Simulated savings vault balance" },
+        "loanBalance": { "type": "number", "description": "Simulated loan liability balance" },
+        "accountStatus": { "type": "string", "enum": ["active", "suspended", "frozen", "closed"], "description": "Account operational status" },
+        "isTestEnvironment": { "type": "boolean", "description": "Explicitly marks simulated Test Environment activity" },
+        "createdDate": { "type": "string", "description": "ISO timestamp of creation" },
+        "lastLogin": { "type": "string", "description": "ISO timestamp of last login" },
+        "emailVerificationStatus": { "type": "boolean", "description": "Status of email confirmation" }
+      },
+      "required": ["id", "userId", "accountNumber", "simulatedBalance", "accountStatus"]
+    },
+    "transactions": {
+      "title": "Transaction",
+      "description": "Simulated ledger records within the Test Environment",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique transaction ID" },
+        "date": { "type": "string", "description": "ISO timestamp of transaction" },
+        "senderId": { "type": "string", "description": "User ID of sender" },
+        "senderAccount": { "type": "string", "description": "Account number of sender" },
+        "senderName": { "type": "string", "description": "Name of sender" },
+        "recipientId": { "type": "string", "description": "User ID of recipient" },
+        "recipientAccount": { "type": "string", "description": "Account number of recipient" },
+        "recipientName": { "type": "string", "description": "Name of recipient" },
+        "amount": { "type": "number", "description": "Transaction amount" },
+        "currency": { "type": "string", "description": "Currency code" },
+        "description": { "type": "string", "description": "Transaction purpose or notes" },
+        "status": { "type": "string", "enum": ["Pending", "Completed", "Failed", "Reversed"], "description": "Status" },
+        "isTestEnvironment": { "type": "boolean", "description": "Identifies simulated financial activity" },
+        "failureReason": { "type": "string", "description": "Reason for failed or reversed transaction" },
+        "adminNotes": { "type": "string", "description": "Administrative notes added by staff" }
+      },
+      "required": ["id", "date", "amount", "status"]
+    },
+    "notifications": {
+      "title": "Notification",
+      "description": "User notification messages and alerts",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique notification ID" },
+        "userId": { "type": "string", "description": "Target user ID" },
+        "title": { "type": "string", "description": "Notification title" },
+        "message": { "type": "string", "description": "Notification body" },
+        "date": { "type": "string", "description": "ISO timestamp" },
+        "read": { "type": "boolean", "description": "Read status" },
+        "type": { "type": "string", "enum": ["info", "warning", "error", "success"], "description": "Notification severity" }
+      },
+      "required": ["id", "userId", "title", "message", "date"]
+    },
+    "auditLogs": {
+      "title": "AuditLog",
+      "description": "Append-only immutable record of privileged administrator actions",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique audit log ID" },
+        "adminId": { "type": "string", "description": "Administrator ID who took the action" },
+        "adminEmail": { "type": "string", "description": "Administrator email" },
+        "action": { "type": "string", "description": "Action performed (e.g., ADJUST_BALANCE, REVERSE_TRANSACTION, FREEZE_USER, UPDATE_ROLE)" },
+        "targetUser": { "type": "string", "description": "Affected user ID or account number" },
+        "targetTransaction": { "type": "string", "description": "Affected transaction ID" },
+        "previousValue": { "type": "string", "description": "JSON representation or string of previous state" },
+        "newValue": { "type": "string", "description": "JSON representation or string of new state" },
+        "amountChanged": { "type": "number", "description": "Balance adjustment delta if applicable" },
+        "reason": { "type": "string", "description": "Administrative justification for action" },
+        "timestamp": { "type": "string", "description": "ISO timestamp of action" }
+      },
+      "required": ["id", "adminId", "action", "timestamp"]
+    },
+    "emails": {
+      "title": "EmailLog",
+      "description": "Transactional email log and delivery status tracking",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique email log ID" },
+        "emailStatus": { "type": "string", "enum": ["Queued", "Sent", "Failed"], "description": "Delivery status" },
+        "transactionId": { "type": "string", "description": "Associated transaction ID if applicable" },
+        "recipient": { "type": "string", "format": "email", "description": "Recipient email address" },
+        "emailType": { "type": "string", "enum": ["Account Created", "Email Verification", "Transfer Sent", "Transfer Received", "Transfer Failed", "Password Reset"], "description": "Template or type of email" },
+        "subject": { "type": "string", "description": "Subject line" },
+        "body": { "type": "string", "description": "Rendered content or text" },
+        "createdTimestamp": { "type": "string", "description": "ISO timestamp of queueing" },
+        "sentTimestamp": { "type": "string", "description": "ISO timestamp of successful send" },
+        "failureReason": { "type": "string", "description": "Reason for delivery failure" },
+        "retryCount": { "type": "number", "description": "Number of retry attempts" }
+      },
+      "required": ["id", "emailStatus", "recipient", "emailType", "createdTimestamp"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "users",
+      "description": "User profiles and credentials"
+    },
+    "/accounts/{accountId}": {
+      "schema": "accounts",
+      "description": "Simulated banking accounts with balances"
+    },
+    "/transactions/{transactionId}": {
+      "schema": "transactions",
+      "description": "Test environment financial transaction records"
+    },
+    "/notifications/{notificationId}": {
+      "schema": "notifications",
+      "description": "User notifications and system alerts"
+    },
+    "/auditLogs/{logId}": {
+      "schema": "auditLogs",
+      "description": "Append-only administrator action audit trail"
+    },
+    "/emails/{emailId}": {
+      "schema": "emails",
+      "description": "Transactional email log and delivery status"
+    }
+  }
+}

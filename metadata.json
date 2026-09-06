@@ -1,0 +1,8 @@
+{
+  "name": "Cathay Bank USA Online",
+  "description": "A modern, secure, and feature-rich online banking application for global customers, offering services from transfers and bill payments to savings and card management us banking features.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

@@ -1,0 +1,70 @@
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Cathay Bank USA Online</title>
+    <meta name="description" content="A modern, secure, and feature-rich online banking application for global customers, offering services from transfers and bill payments to savings and card management us banking features." />
+    <meta property="og:title" content="Cathay Bank USA Online" />
+    <meta property="og:description" content="A modern, secure, and feature-rich online banking application for global customers, offering services from transfers and bill payments to savings and card management us banking features." />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            colors: {
+              primary: {
+                DEFAULT: 'hsl(210, 100%, 20%)', // Deep Navy for Cathay Bank
+                light: 'hsl(210, 100%, 30%)',
+                dark: 'hsl(210, 100%, 15%)',
+                foreground: 'hsl(210, 40%, 98%)',
+              },
+              background: 'hsl(0, 0%, 100%)',
+              foreground: 'hsl(222, 47%, 11%)',
+              card: 'hsl(0, 0%, 100%)',
+              'card-foreground': 'hsl(222, 47%, 11%)',
+              muted: 'hsl(210, 40%, 96.1%)',
+              'muted-foreground': 'hsl(215, 20%, 45%)',
+              accent: 'hsl(210, 40%, 96.1%)',
+              'accent-foreground': 'hsl(222, 47%, 11%)',
+              destructive: 'hsl(0, 84%, 60%)',
+              border: 'hsl(214, 32%, 91%)',
+              input: 'hsl(214, 32%, 91%)',
+
+              dark: {
+                primary: '#10B981', // Emerald green as primary accent for fintech money actions
+                background: '#0B0F14', // Deep dark
+                foreground: '#F9FAFB', // White primary
+                card: '#1A1F27', // Sleek dark gray card
+                'card-foreground': '#F9FAFB',
+                muted: '#232D3B', // Soft dark muted
+                'muted-foreground': '#9CA3AF', // Soft gray secondary text
+                accent: '#10B981',
+                'accent-foreground': '#F9FAFB',
+                destructive: '#EF4444',
+                border: '#2A3547',
+                input: '#2A3547',
+              }
+            },
+            keyframes: {
+              'shine': {
+                '0%': { transform: 'translateX(-100%)' },
+                '100%': { transform: 'translateX(100%)' },
+              },
+            },
+            animation: {
+              shine: 'shine 1.5s linear infinite',
+            }
+          }
+        }
+      }
+    </script>
+  </head>
+  <body class="bg-background text-foreground">
+    <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
+  </body>
+</html>
