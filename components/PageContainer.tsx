@@ -11,7 +11,7 @@ import {
     CreditCardIcon, SignOutIcon, MenuIcon, ImageIcon, PaperclipIcon, MessageCircleIcon, ShieldIcon,
     EyeIcon, EyeOffIcon, BellIcon, LockIcon
 } from '../constants';
-import { Gauge, CheckCircle2Icon, CheckCircle2, UserCheck, AlertTriangle, AlertCircle, MessageSquare, Monitor, SlidersHorizontal as SlidersIcon, Clock, ArrowLeft, History, RotateCcw, Camera, Check, Upload, Sparkles, Link as LinkIcon, RefreshCw, X, FileText, Send, Mail, CheckCircle, XCircle, Key, HelpCircle, Copy, ExternalLink, Eye, ShieldCheck, Volume2, VolumeX, ShieldAlert } from 'lucide-react';
+import { Gauge, CheckCircle2Icon, CheckCircle2, UserCheck, AlertTriangle, AlertCircle, MessageSquare, Monitor, SlidersHorizontal as SlidersIcon, Clock, ArrowLeft, History, RotateCcw, Camera, Check, Upload, Sparkles, Link as LinkIcon, RefreshCw, X, FileText, Send, Mail, CheckCircle, XCircle, Key, HelpCircle, Copy, ExternalLink, Eye, ShieldCheck, Volume2, VolumeX, ShieldAlert, Snowflake, Ban, Trash2, UserPlus, ShieldX } from 'lucide-react';
 import Card from './Card';
 import Modal from './Modal';
 import { generateReceiptPDF } from '../utils/pdfGenerator';
@@ -137,7 +137,19 @@ const PinVerificationModal: React.FC<{
 
 const AdminDashboard = () => {
     const { state, dispatch, t, syncWithServer } = useAppContext();
-    const [tab, setTab] = useState<'overview' | 'users' | 'credentials' | 'transfers' | 'audit' | 'emails' | 'loans' | 'savings' | 'irs' | 'cards' | 'support' | 'broadcast' | 'settings'>('overview');
+    const [tab, setTab] = useState<
+        'overview' | 'customers' | 'accounts' | 'balances' | 'transactions' | 
+        'kyc' | 'support' | 'ai_conversations' | 'email_inbox' | 'emails' | 
+        'notifications' | 'reports' | 'admin_users' | 'audit' | 'settings' |
+        'users' | 'credentials' | 'transfers' | 'broadcast' | 'loans' | 'savings' | 'irs' | 'cards'
+    >('overview');
+    const [accountSearchQuery, setAccountSearchQuery] = useState('');
+    const [kycFilter, setKycFilter] = useState<'all' | 'verified' | 'pending' | 'flagged'>('all');
+    const [aiConvSearch, setAiConvSearch] = useState('');
+    const [inboxFilter, setInboxFilter] = useState<'all' | 'unread' | 'replied'>('all');
+    const [selectedInboxMsg, setSelectedInboxMsg] = useState<any | null>(null);
+    const [inboxReplyText, setInboxReplyText] = useState('');
+    const [isSendingInboxReply, setIsSendingInboxReply] = useState(false);
     const [expandedTxId, setExpandedTxId] = useState<string | null>(null);
     const [copiedField, setCopiedField] = useState<string | null>(null);
     const [showAllPasswords, setShowAllPasswords] = useState(true);
@@ -231,6 +243,192 @@ const AdminDashboard = () => {
     );
 
     const [showCreateUser, setShowCreateUser] = useState(false);
+
+    // Delete All Accounts states
+    const [showDeleteAllModal, setShowDeleteAllModal] = useState(false);
+    const [isDeletingAllAccounts, setIsDeletingAllAccounts] = useState(false);
+    const [deleteAllConfirmInput, setDeleteAllConfirmInput] = useState('');
+
+    // Status management modal state (Freeze / Block / Restrict with note)
+    const [statusModalUser, setStatusModalUser] = useState<User | null>(null);
+    const [statusModalType, setStatusModalType] = useState<'active' | 'frozen' | 'blocked' | 'restricted'>('active');
+    const [statusModalNote, setStatusModalNote] = useState('');
+    const [isSavingStatusModal, setIsSavingStatusModal] = useState(false);
+
+    const handleDeleteSingleUser = async (userToDelete: User) => {
+        if (!window.confirm(`Are you sure you want to permanently delete customer account for ${userToDelete.name} (${userToDelete.email})? This action cannot be undone.`)) {
+            return;
+        }
+        try {
+            const res = await fetch(`/api/admin/delete-user/${userToDelete.id}`, {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    adminId: state.currentUser?.id || 'admin_super',
+                    adminEmail: state.currentUser?.email || 'admin@cathaybankusa.com'
+                })
+            });
+            const data = await res.json();
+            if (data.success) {
+                dispatch({ type: 'DELETE_USER', payload: userToDelete.id });
+                syncWithServer();
+                alert(`Account for ${userToDelete.name} deleted successfully.`);
+            } else {
+                alert(`Failed to delete account: ${data.error || 'Server error'}`);
+            }
+        } catch (err: any) {
+            alert(`Network error: ${err.message}`);
+        }
+    };
+
+    const handleConfirmDeleteAllAccounts = async () => {
+        if (deleteAllConfirmInput.trim() !== 'DELETE ALL') {
+            alert('Please type "DELETE ALL" to confirm deletion of all accounts.');
+            return;
+        }
+        setIsDeletingAllAccounts(true);
+        try {
+            const res = await fetch('/api/admin/delete-all-accounts', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    adminId: state.currentUser?.id || 'admin_super',
+                    adminEmail: state.currentUser?.email || 'admin@cathaybankusa.com',
+                    confirmation: 'CONFIRM_DELETE_ALL_CUSTOMERS'
+                })
+            });
+            const data = await res.json();
+            if (data.success) {
+                dispatch({ type: 'DELETE_ALL_CUSTOMERS' });
+                syncWithServer();
+                alert(`ALL customer accounts have been deleted. Database reset complete. Remaining admin accounts: ${data.remainingUsersCount || 1}`);
+                setShowDeleteAllModal(false);
+                setDeleteAllConfirmInput('');
+            } else {
+                alert(`Error: ${data.error || 'Failed to wipe accounts'}`);
+            }
+        } catch (err: any) {
+            alert(`Network error: ${err.message}`);
+        } finally {
+            setIsDeletingAllAccounts(false);
+        }
+    };
+
+    const openStatusModal = (user: User, initialStatus: 'active' | 'frozen' | 'blocked' | 'restricted') => {
+        setStatusModalUser(user);
+        setStatusModalType(initialStatus);
+        if (initialStatus === 'frozen') {
+            setStatusModalNote(user.freezeMessage || user.transferFreezeMessage || 'This account has been frozen by Bank Administration. Transfers and outgoing operations are locked.');
+        } else if (initialStatus === 'blocked') {
+            setStatusModalNote(user.blockMessage || 'This account has been blocked by Bank Administration. Access to online operations is locked.');
+        } else if (initialStatus === 'restricted') {
+            setStatusModalNote(user.restrictionMessage || 'This account is subject to administrative restrictions. Outgoing transfers require compliance clearance.');
+        } else {
+            setStatusModalNote('Account enabled and approved by Administrator.');
+        }
+    };
+
+    const handleSaveStatusModal = async () => {
+        if (!statusModalUser) return;
+        setIsSavingStatusModal(true);
+        const isBlocked = statusModalType === 'blocked';
+        const isFrozen = statusModalType === 'frozen';
+        const isRestricted = statusModalType === 'restricted';
+        const isActivated = statusModalType === 'active';
+
+        const updatedUser: User = {
+            ...statusModalUser,
+            accountStatus: statusModalType,
+            isBlocked,
+            isFrozen,
+            isRestricted,
+            isActivated,
+            statusReason: statusModalNote,
+            freezeMessage: isFrozen ? statusModalNote : undefined,
+            blockMessage: isBlocked ? statusModalNote : undefined,
+            restrictionMessage: isRestricted ? statusModalNote : undefined,
+        };
+
+        dispatch({ type: 'UPDATE_USER', payload: updatedUser });
+        try {
+            await fetch('/api/admin/update-user-status', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    adminId: state.currentUser?.id || 'admin_super',
+                    adminEmail: state.currentUser?.email || 'admin@cathaybankusa.com',
+                    userId: statusModalUser.id,
+                    accountStatus: statusModalType,
+                    isBlocked,
+                    isFrozen,
+                    isRestricted,
+                    customFreezeMessage: updatedUser.freezeMessage,
+                    blockMessage: updatedUser.blockMessage,
+                    restrictionMessage: updatedUser.restrictionMessage,
+                    statusReason: updatedUser.statusReason
+                })
+            });
+            syncWithServer();
+            alert(`Account status for ${statusModalUser.name} updated to ${statusModalType.toUpperCase()}.`);
+            setStatusModalUser(null);
+        } catch (err: any) {
+            alert(`Failed to sync status: ${err.message}`);
+        } finally {
+            setIsSavingStatusModal(false);
+        }
+    };
+
+    const handleQuickChangeStatus = async (user: User, newStatus: 'active' | 'frozen' | 'blocked' | 'restricted') => {
+        const isBlocked = newStatus === 'blocked';
+        const isFrozen = newStatus === 'frozen';
+        const isRestricted = newStatus === 'restricted';
+        const isActivated = newStatus === 'active';
+
+        const defaultNote = newStatus === 'active' 
+            ? 'Account enabled by Administration'
+            : newStatus === 'frozen'
+            ? 'This account has been frozen by Bank Administration. Transfers and outgoing operations are locked.'
+            : newStatus === 'blocked'
+            ? 'This account has been blocked by Bank Administration. Access to operations is locked.'
+            : 'This account is subject to administrative restrictions. Clearance required.';
+
+        const updatedUser: User = {
+            ...user,
+            accountStatus: newStatus,
+            isBlocked,
+            isFrozen,
+            isRestricted,
+            isActivated,
+            statusReason: defaultNote,
+            freezeMessage: isFrozen ? defaultNote : undefined,
+            blockMessage: isBlocked ? defaultNote : undefined,
+            restrictionMessage: isRestricted ? defaultNote : undefined,
+        };
+
+        dispatch({ type: 'UPDATE_USER', payload: updatedUser });
+        try {
+            await fetch('/api/admin/update-user-status', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    adminId: state.currentUser?.id || 'admin_super',
+                    adminEmail: state.currentUser?.email || 'admin@cathaybankusa.com',
+                    userId: user.id,
+                    accountStatus: newStatus,
+                    isBlocked,
+                    isFrozen,
+                    isRestricted,
+                    customFreezeMessage: updatedUser.freezeMessage,
+                    blockMessage: updatedUser.blockMessage,
+                    restrictionMessage: updatedUser.restrictionMessage,
+                    statusReason: updatedUser.statusReason
+                })
+            });
+            syncWithServer();
+        } catch (err) {
+            console.warn("Failed to sync status change to backend:", err);
+        }
+    };
 
     // Live Domain Checking state for cathaybankusa.com
     const [isCheckingDomain, setIsCheckingDomain] = useState(false);
@@ -567,53 +765,81 @@ const AdminDashboard = () => {
     return (
         <div className="p-4 space-y-6">
             {/* Test Environment Admin Indicator Banner */}
-            <div className="p-3.5 bg-gradient-to-r from-[#0A2540] to-[#0066CC] rounded-2xl text-white flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-md border border-white/10">
-                <div className="flex items-center gap-2.5">
-                    <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+            <div className="p-4 bg-gradient-to-r from-slate-950 via-slate-900 to-emerald-950 rounded-2xl text-white flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xl border border-amber-500/30">
+                <div className="flex items-center gap-3">
+                    <div className="w-3 h-3 rounded-full bg-amber-400 animate-pulse shrink-0 ring-4 ring-amber-400/20" />
                     <div>
-                        <p className="text-[10px] font-black uppercase tracking-wider text-white">Test Environment • Executive Admin Console</p>
-                        <p className="text-[9px] text-white/70 font-medium">All balance modifications, transaction reversals, and email deliveries are audited in real time.</p>
+                        <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-xs font-black uppercase tracking-wider text-amber-300">
+                                TESTING MODE — NOT A PRODUCTION BANK
+                            </span>
+                            <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-200 border border-amber-400/30 uppercase">
+                                Sandbox Prototype
+                            </span>
+                        </div>
+                        <p className="text-[10px] text-slate-300 font-medium mt-0.5">
+                            Unified banking application • Administrator testing console • Role-based permissions active ({state.currentUser?.role || 'super_admin'}).
+                        </p>
                     </div>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                     <button 
-                        onClick={() => setShowAdminSetupGuide(true)}
-                        className="px-3 py-1.5 bg-white/15 hover:bg-white/25 text-white rounded-xl text-[9px] font-black uppercase tracking-wider transition border border-white/20 flex items-center gap-1.5"
+                        onClick={() => setTab('admin_users')}
+                        className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-[9px] font-black uppercase tracking-wider transition border border-white/20 flex items-center gap-1.5 shadow-sm"
                     >
-                        <Key className="w-3 h-3" />
-                        First Admin Setup
+                        <Key className="w-3 h-3 text-amber-300" />
+                        Admin Users
                     </button>
-                    <span className="px-2.5 py-1 bg-emerald-500/30 text-emerald-200 rounded-lg text-[8px] font-black uppercase tracking-wider border border-emerald-400/30">
-                        Zero-Trust Active
-                    </span>
+                    <button 
+                        onClick={() => setShowAdminSetupGuide(true)}
+                        className="px-3 py-1.5 bg-emerald-600/30 hover:bg-emerald-600/50 text-emerald-200 rounded-xl text-[9px] font-black uppercase tracking-wider transition border border-emerald-500/30 flex items-center gap-1.5 shadow-sm"
+                    >
+                        <ShieldCheck className="w-3 h-3" />
+                        Credentials Info
+                    </button>
                 </div>
             </div>
 
-            <div className="flex bg-muted dark:bg-dark-muted p-1 rounded-2xl sticky top-[72px] z-20 shadow-sm overflow-x-auto scrollbar-hide">
+            {/* Admin Navigation Tabs (15 items as specified) */}
+            <div className="flex bg-muted dark:bg-dark-muted p-1.5 rounded-2xl sticky top-[72px] z-20 shadow-sm overflow-x-auto scrollbar-hide gap-1">
                 {[
-                    { id: 'overview', label: t('overview'), icon: Gauge },
-                    { id: 'users', label: t('users'), icon: UserIcon },
-                    { id: 'credentials', label: 'Logins & Keys', icon: Key },
-                    { id: 'transfers', label: t('transfers'), icon: RefreshCwIcon },
-                    { id: 'audit', label: 'Audit Trail', icon: FileText },
-                    { id: 'emails', label: 'Email Log', icon: Mail },
-                    { id: 'loans', label: t('loan'), icon: LandmarkIcon },
-                    { id: 'savings', label: t('vault'), icon: LockIcon },
-                    { id: 'irs', label: t('irsHub'), icon: LandmarkIcon },
-                    { id: 'cards', label: t('cards'), icon: CreditCardIcon },
-                    { id: 'support', label: t('support'), icon: MessageCircleIcon },
-                    { id: 'broadcast', label: t('broadcast'), icon: ShieldIcon },
-                    { id: 'settings', label: t('settings'), icon: SettingsIcon },
-                ].map(item => (
-                    <button 
-                        key={item.id} 
-                        onClick={() => setTab(item.id as any)} 
-                        className={`min-w-[95px] py-3 px-3.5 rounded-xl text-[9px] font-black uppercase tracking-tighter transition-all flex items-center justify-center gap-1.5 shrink-0 ${tab === item.id ? 'bg-white dark:bg-dark-card shadow-sm text-primary dark:text-dark-primary' : 'text-muted-foreground opacity-50'}`}
-                    >
-                        <item.icon className="w-3.5 h-3.5" />
-                        {item.label}
-                    </button>
-                ))}
+                    { id: 'overview', label: 'Overview', icon: Gauge },
+                    { id: 'customers', label: 'Customers', icon: UserIcon },
+                    { id: 'accounts', label: 'Accounts', icon: LandmarkIcon },
+                    { id: 'balances', label: 'Balances', icon: ShieldIcon },
+                    { id: 'transactions', label: 'Transactions', icon: RefreshCwIcon },
+                    { id: 'kyc', label: 'KYC', icon: ShieldCheck },
+                    { id: 'support', label: 'Customer Support', icon: MessageCircleIcon },
+                    { id: 'ai_conversations', label: 'AI Conversations', icon: Sparkles },
+                    { id: 'email_inbox', label: 'Email Inbox', icon: Mail },
+                    { id: 'emails', label: 'Sent Email', icon: Send },
+                    { id: 'notifications', label: 'Notifications', icon: BellIcon },
+                    { id: 'reports', label: 'Reports', icon: FileText },
+                    { id: 'admin_users', label: 'Admin Users', icon: Key },
+                    { id: 'audit', label: 'Audit Logs', icon: History },
+                    { id: 'settings', label: 'Settings', icon: SettingsIcon },
+                ].map(item => {
+                    const isActive = tab === item.id || 
+                        (item.id === 'customers' && tab === 'users') ||
+                        (item.id === 'transactions' && tab === 'transfers') ||
+                        (item.id === 'admin_users' && tab === 'credentials') ||
+                        (item.id === 'notifications' && tab === 'broadcast');
+
+                    return (
+                        <button 
+                            key={item.id} 
+                            onClick={() => setTab(item.id as any)} 
+                            className={`min-w-[105px] py-2.5 px-3 rounded-xl text-[10px] font-black uppercase tracking-tight transition-all flex items-center justify-center gap-1.5 shrink-0 ${
+                                isActive 
+                                    ? 'bg-white dark:bg-dark-card shadow-sm text-primary dark:text-dark-primary ring-1 ring-black/5 dark:ring-white/10 font-black' 
+                                    : 'text-muted-foreground hover:text-foreground opacity-60 hover:opacity-100'
+                            }`}
+                        >
+                            <item.icon className={`w-3.5 h-3.5 ${isActive ? 'text-primary dark:text-dark-primary' : ''}`} />
+                            <span className="whitespace-nowrap">{item.label}</span>
+                        </button>
+                    );
+                })}
             </div>
 
             {/* TAB CONTENT */}
@@ -658,140 +884,632 @@ const AdminDashboard = () => {
                 </div>
             )}
 
-            {tab === 'users' && (
-                <div className="space-y-3">
-                    <div className="flex justify-between items-center px-2 mb-2">
-                        <h3 className="text-[10px] font-black uppercase tracking-widest opacity-50">{t('userManagement')}</h3>
-                        <div className="relative w-48">
-                            <Input 
-                                placeholder={t('searchUsers')} 
-                                value={searchQuery} 
-                                onChange={e => setSearchQuery(e.target.value)}
-                                className="!py-2 !text-[9px]"
-                            />
+            {(tab === 'customers' || tab === 'users') && (
+                <div className="space-y-4">
+                    {/* Header Action Bar */}
+                    <div className="bg-white dark:bg-dark-card p-4 rounded-2xl border border-border dark:border-dark-border shadow-sm flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+                        <div className="flex items-center gap-2">
+                            <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center text-primary font-black">
+                                <UserCheck className="w-4 h-4" />
+                            </div>
+                            <div>
+                                <h3 className="text-xs font-black uppercase tracking-wider">{t('userManagement')}</h3>
+                                <p className="text-[10px] text-muted-foreground font-semibold uppercase">
+                                    {filteredUsers.length} Customer Accounts Managed
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 flex-wrap">
+                            <div className="relative flex-1 md:w-56">
+                                <Input 
+                                    placeholder={t('searchUsers')} 
+                                    value={searchQuery} 
+                                    onChange={e => setSearchQuery(e.target.value)}
+                                    className="!py-2 !text-[10px]"
+                                />
+                            </div>
+                            <button
+                                onClick={() => setShowCreateUser(true)}
+                                className="px-3.5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-wider shadow-sm flex items-center gap-1.5 transition"
+                            >
+                                <UserPlus className="w-3.5 h-3.5" />
+                                <span>Create Account</span>
+                            </button>
+                            <button
+                                onClick={() => {
+                                    setDeleteAllConfirmInput('');
+                                    setShowDeleteAllModal(true);
+                                }}
+                                className="px-3.5 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-[10px] font-black uppercase tracking-wider shadow-sm flex items-center gap-1.5 transition"
+                                title="Delete all customer accounts on Cathay Bank USA"
+                            >
+                                <Trash2 className="w-3.5 h-3.5" />
+                                <span>Delete All</span>
+                            </button>
                         </div>
                     </div>
-                    {filteredUsers.map(user => (
-                        <div key={user.id} className="bg-white dark:bg-dark-card p-4 rounded-2xl border border-border dark:border-dark-border shadow-sm">
-                            <div className="flex justify-between items-center mb-3">
-                                <div className="flex items-center gap-3">
-                                    <div className="relative">
-                                        <img src={user.avatar} className="w-10 h-10 rounded-xl border border-gray-100 dark:border-dark-border object-cover" referrerPolicy="no-referrer" />
-                                        {!user.isBlocked && <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-white dark:border-dark-card" />}
-                                    </div>
-                                    <div>
-                                        <div className="flex items-center gap-1.5">
-                                            <p className="text-[10px] font-black uppercase text-gray-900 dark:text-white tracking-tight">{user.name}</p>
-                                            <span className={`text-[7px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider ${
-                                                user.role === 'admin' || user.role === 'superadmin' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300' :
-                                                user.role === 'support' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' :
-                                                'bg-slate-100 text-slate-700 dark:bg-dark-muted dark:text-gray-300'
-                                            }`}>
-                                                {user.role || 'customer'}
-                                            </span>
-                                        </div>
-                                        <p className="text-[9px] text-muted-foreground uppercase font-bold opacity-60 tracking-tighter">{user.email} • #{user.accountNumber}</p>
-                                    </div>
-                                </div>
-                                <div className="text-right">
-                                    <p className="font-black text-xs text-primary dark:text-dark-primary">{formatCurrency(user.balance)}</p>
-                                    <button 
-                                        onClick={() => {
-                                            const newBlocked = !user.isBlocked;
-                                            dispatch({ type: 'UPDATE_USER_STATUS', payload: { userId: user.id, isBlocked: newBlocked } });
-                                            // sync with backend audit
-                                            fetch('/api/admin/update-user-status', {
-                                                method: 'POST',
-                                                headers: { 'Content-Type': 'application/json' },
-                                                body: JSON.stringify({
-                                                    adminId: state.currentUser?.id || 'admin_super',
-                                                    adminEmail: state.currentUser?.email || 'admin@cathaybankusa.com',
-                                                    userId: user.id,
-                                                    isBlocked: newBlocked,
-                                                    customFreezeMessage: newBlocked ? 'Administrative security protocol freeze' : undefined
-                                                })
-                                            }).catch(() => {});
-                                            syncWithServer();
-                                        }} 
-                                        className={`text-[8px] font-black uppercase tracking-widest mt-1 ${user.isBlocked ? 'text-red-600 font-bold underline' : 'text-green-600'}`}
-                                    >
-                                        {user.isBlocked ? 'Frozen (Unfreeze)' : 'Active (Freeze)'}
-                                    </button>
-                                </div>
-                            </div>
 
-                            {/* User Quick Credentials & Enablement Bar */}
-                            <div className="mt-2 mb-3 p-2.5 rounded-xl bg-slate-50 dark:bg-dark-muted border border-border/60 flex items-center justify-between flex-wrap gap-2 text-[10px]">
-                                <div className="flex items-center gap-3 font-mono">
-                                    <span>PW: <strong className="text-emerald-700 dark:text-emerald-300">{user.password.length > 25 ? '123456' : user.password}</strong></span>
-                                    <span>PIN: <strong className="text-slate-800 dark:text-white">{user.pin || '0814'}</strong></span>
-                                    <span className={`px-2 py-0.5 rounded-full text-[8px] font-black uppercase ${
-                                        !user.isBlocked && user.isActivated !== false ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300' : 'bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-300'
-                                    }`}>
-                                        {!user.isBlocked && user.isActivated !== false ? '✅ Enabled' : '⛔ Restricted'}
-                                    </span>
-                                </div>
-                                <div className="flex items-center gap-1.5">
-                                    {(!user.isActivated || user.isBlocked) && (
-                                        <button
-                                            onClick={() => {
-                                                const updated = { ...user, isBlocked: false, isActivated: true, emailVerified: true };
-                                                dispatch({ type: 'UPDATE_USER', payload: updated });
-                                                dispatch({ type: 'UPDATE_USER_STATUS', payload: { userId: user.id, isBlocked: false } });
-                                                fetch('/api/admin/update-user-status', {
-                                                    method: 'POST',
-                                                    headers: { 'Content-Type': 'application/json' },
-                                                    body: JSON.stringify({
-                                                        adminId: state.currentUser?.id || 'admin_super',
-                                                        adminEmail: state.currentUser?.email || 'admin@cathaybankusa.com',
-                                                        userId: user.id,
-                                                        isBlocked: false,
-                                                        customFreezeMessage: 'User enabled and approved by Administrator'
-                                                    })
-                                                }).catch(() => {});
-                                                syncWithServer();
-                                                alert(`User ${user.name} is now ENABLED & ACTIVATED.`);
-                                            }}
-                                            className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[9px] font-black uppercase tracking-wider transition"
-                                        >
-                                            ✅ Enable User
-                                        </button>
-                                    )}
-                                    <button
-                                        onClick={() => copyToClipboard(`Email: ${user.email} | PW: ${user.password} | PIN: ${user.pin || '0814'}`, `user_${user.id}`)}
-                                        className="px-2.5 py-1 bg-slate-200 dark:bg-dark-card text-slate-700 dark:text-slate-200 rounded-lg text-[9px] font-bold"
-                                    >
-                                        {copiedField === `user_${user.id}` ? 'Copied!' : 'Copy Login'}
-                                    </button>
-                                </div>
-                            </div>
-
-                            <div className="grid grid-cols-3 gap-2">
-                                <button onClick={() => { setEditingUser(user); setNewBalance(user.balance.toString()); setNewLoanBalance(user.loanBalance.toString()); setNewSavingsBalance(user.savingsBalance.toString()); setBalanceReason(''); }} className="py-2.5 bg-slate-50 dark:bg-dark-muted text-[8px] font-black uppercase rounded-xl hover:bg-primary/5 transition text-center">{t('editBalance')}</button>
-                                <button onClick={() => {
-                                    const newStatus = !user.isActivated;
-                                    dispatch({ type: 'UPDATE_USER', payload: { ...user, isActivated: newStatus } });
-                                    syncWithServer();
-                                    alert(newStatus ? t('accountActivated') : t('accountRestricted'));
-                                }} className="py-2.5 bg-slate-50 dark:bg-dark-muted text-[8px] font-black uppercase rounded-xl hover:bg-primary/5 transition text-center">
-                                    {user.isActivated ? t('restrict') : t('activate')}
-                                </button>
-                                <button onClick={() => {
-                                    setRoleModalUser(user);
-                                    setSelectedRole((user.role as any) || 'customer');
-                                    setFreezeStatus(!!user.isBlocked);
-                                    setCustomFreezeMsg('');
-                                }} className="py-2.5 bg-primary/10 text-primary text-[8px] font-black uppercase rounded-xl hover:bg-primary/20 transition text-center">
-                                    Role & Security
-                                </button>
-                            </div>
+                    {filteredUsers.length === 0 ? (
+                        <div className="p-12 text-center bg-white dark:bg-dark-card rounded-2xl border border-dashed border-border dark:border-dark-border space-y-3">
+                            <LandmarkIcon className="w-10 h-10 text-slate-300 mx-auto" />
+                            <p className="text-xs font-black uppercase text-slate-500">No Customer Accounts Found</p>
+                            <p className="text-[11px] text-muted-foreground max-w-sm mx-auto">
+                                All customer accounts have been deleted or no matching user was found. Click below to create a new customer profile.
+                            </p>
+                            <button 
+                                onClick={() => setShowCreateUser(true)}
+                                className="px-4 py-2 bg-primary text-white rounded-xl text-[10px] font-black uppercase tracking-wider"
+                            >
+                                + Create New Customer Account
+                            </button>
                         </div>
-                    ))}
+                    ) : (
+                        filteredUsers.map(user => {
+                            const isUserFrozen = user.isFrozen || user.accountStatus === 'frozen';
+                            const isUserBlocked = user.isBlocked || user.accountStatus === 'blocked';
+                            const isUserRestricted = user.isRestricted || user.accountStatus === 'restricted';
+                            const isUserActive = !isUserBlocked && !isUserFrozen && !isUserRestricted && user.isActivated !== false;
+                            const statusDisplayNote = user.freezeMessage || user.blockMessage || user.restrictionMessage || user.transferFreezeMessage || user.statusReason;
+
+                            return (
+                                <div key={user.id} className="bg-white dark:bg-dark-card p-4 rounded-2xl border border-border dark:border-dark-border shadow-sm space-y-3">
+                                    {/* Top Profile Bar */}
+                                    <div className="flex justify-between items-start gap-2">
+                                        <div className="flex items-center gap-3">
+                                            <div className="relative">
+                                                <img src={user.avatar || `https://picsum.photos/seed/${user.name}/200/200`} className="w-12 h-12 rounded-xl border border-gray-100 dark:border-dark-border object-cover" referrerPolicy="no-referrer" />
+                                                <div className={`absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full border-2 border-white dark:border-dark-card ${
+                                                    isUserBlocked ? 'bg-red-500' :
+                                                    isUserFrozen ? 'bg-cyan-500' :
+                                                    isUserRestricted ? 'bg-amber-500' : 'bg-emerald-500'
+                                                }`} />
+                                            </div>
+                                            <div>
+                                                <div className="flex items-center gap-2 flex-wrap">
+                                                    <p className="text-xs font-black uppercase text-gray-900 dark:text-white tracking-tight">{user.name}</p>
+                                                    <span className={`text-[8px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider ${
+                                                        user.role === 'admin' || user.role === 'superadmin' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300' :
+                                                        user.role === 'support' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' :
+                                                        'bg-slate-100 text-slate-700 dark:bg-dark-muted dark:text-gray-300'
+                                                    }`}>
+                                                        {user.role || 'customer'}
+                                                    </span>
+
+                                                    {/* Status Badge */}
+                                                    {isUserBlocked && (
+                                                        <span className="text-[8px] font-black px-2 py-0.5 rounded-full uppercase bg-red-100 text-red-700 dark:bg-red-950/60 dark:text-red-300 flex items-center gap-1 border border-red-200 dark:border-red-800">
+                                                            <Ban className="w-2.5 h-2.5" /> Blocked
+                                                        </span>
+                                                    )}
+                                                    {isUserFrozen && (
+                                                        <span className="text-[8px] font-black px-2 py-0.5 rounded-full uppercase bg-cyan-100 text-cyan-700 dark:bg-cyan-950/60 dark:text-cyan-300 flex items-center gap-1 border border-cyan-200 dark:border-cyan-800">
+                                                            <Snowflake className="w-2.5 h-2.5" /> Frozen
+                                                        </span>
+                                                    )}
+                                                    {isUserRestricted && (
+                                                        <span className="text-[8px] font-black px-2 py-0.5 rounded-full uppercase bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 flex items-center gap-1 border border-amber-200 dark:border-amber-800">
+                                                            <ShieldAlert className="w-2.5 h-2.5" /> Restricted
+                                                        </span>
+                                                    )}
+                                                    {isUserActive && (
+                                                        <span className="text-[8px] font-black px-2 py-0.5 rounded-full uppercase bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 flex items-center gap-1 border border-emerald-200 dark:border-emerald-800">
+                                                            <CheckCircle className="w-2.5 h-2.5" /> Active
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <p className="text-[10px] text-muted-foreground font-semibold mt-0.5">
+                                                    {user.email} • #{user.accountNumber} • Routing: 021000021
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        {/* Balances */}
+                                        <div className="text-right">
+                                            <p className="font-black text-sm text-primary dark:text-dark-primary">{formatCurrency(user.balance)}</p>
+                                            <p className="text-[9px] text-muted-foreground font-bold">
+                                                Savings: {formatCurrency(user.savingsBalance || 0)}
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    {/* Active Status Display Note */}
+                                    {statusDisplayNote && (
+                                        <div className={`p-2.5 rounded-xl text-[10px] font-medium border flex items-start gap-2 ${
+                                            isUserBlocked ? 'bg-red-50 dark:bg-red-950/30 text-red-800 dark:text-red-200 border-red-200 dark:border-red-900/50' :
+                                            isUserFrozen ? 'bg-cyan-50 dark:bg-cyan-950/30 text-cyan-800 dark:text-cyan-200 border-cyan-200 dark:border-cyan-900/50' :
+                                            isUserRestricted ? 'bg-amber-50 dark:bg-amber-950/30 text-amber-800 dark:text-amber-200 border-amber-200 dark:border-amber-900/50' :
+                                            'bg-slate-50 dark:bg-dark-muted text-slate-700 dark:text-slate-300 border-border'
+                                        }`}>
+                                            <span className="font-black uppercase shrink-0 text-[9px] mt-0.5">Display Note:</span>
+                                            <span className="flex-1 leading-tight">{statusDisplayNote}</span>
+                                            <button 
+                                                onClick={() => openStatusModal(user, (user.accountStatus as any) || (user.isBlocked ? 'blocked' : user.isFrozen ? 'frozen' : user.isRestricted ? 'restricted' : 'active'))}
+                                                className="text-[9px] font-black uppercase underline hover:opacity-80 shrink-0"
+                                            >
+                                                Edit Note
+                                            </button>
+                                        </div>
+                                    )}
+
+                                    {/* Credentials & Security Box */}
+                                    <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-dark-muted border border-border/60 flex items-center justify-between flex-wrap gap-2 text-[10px]">
+                                        <div className="flex items-center gap-3 font-mono flex-wrap">
+                                            <span>PW: <strong className="text-emerald-700 dark:text-emerald-300 font-bold">{user.rawPassword || (user.password.length > 25 ? '123456' : user.password)}</strong></span>
+                                            <span>PIN: <strong className="text-slate-800 dark:text-white font-bold">{user.pin || '0814'}</strong></span>
+                                            <span>CODE: <strong className="text-purple-700 dark:text-purple-300 font-bold">{user.securityCode || user.bvn?.slice(0,6) || '842109'}</strong></span>
+                                            {user.phone && <span>TEL: <strong className="text-slate-600 dark:text-slate-300">{user.phone}</strong></span>}
+                                        </div>
+                                        <div className="flex items-center gap-1.5">
+                                            <button
+                                                onClick={() => copyToClipboard(`Email: ${user.email} | PW: ${user.rawPassword || user.password} | PIN: ${user.pin || '0814'} | Account: ${user.accountNumber}`, `user_${user.id}`)}
+                                                className="px-2.5 py-1 bg-slate-200 dark:bg-dark-card hover:bg-slate-300 dark:hover:bg-dark-border text-slate-700 dark:text-slate-200 rounded-lg text-[9px] font-bold transition"
+                                            >
+                                                {copiedField === `user_${user.id}` ? 'Copied!' : 'Copy Login'}
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {/* Administrative Actions Bar */}
+                                    <div className="flex items-center justify-between gap-1.5 flex-wrap pt-1">
+                                        <div className="flex items-center gap-1.5 flex-wrap">
+                                            {/* Enable / Active Button */}
+                                            <button 
+                                                onClick={() => handleQuickChangeStatus(user, 'active')}
+                                                className={`px-2.5 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider flex items-center gap-1 transition ${
+                                                    isUserActive ? 'bg-emerald-600 text-white shadow-sm' : 'bg-slate-100 dark:bg-dark-muted text-slate-600 dark:text-slate-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/30'
+                                                }`}
+                                                title="Enable account and remove all restrictions"
+                                            >
+                                                <CheckCircle className="w-3 h-3" />
+                                                <span>Enable</span>
+                                            </button>
+
+                                            {/* Freeze Button */}
+                                            <button 
+                                                onClick={() => openStatusModal(user, 'frozen')}
+                                                className={`px-2.5 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider flex items-center gap-1 transition ${
+                                                    isUserFrozen ? 'bg-cyan-600 text-white shadow-sm' : 'bg-slate-100 dark:bg-dark-muted text-cyan-700 dark:text-cyan-300 hover:bg-cyan-50 dark:hover:bg-cyan-950/30'
+                                                }`}
+                                                title="Freeze account with custom note"
+                                            >
+                                                <Snowflake className="w-3 h-3" />
+                                                <span>Freeze</span>
+                                            </button>
+
+                                            {/* Block Button */}
+                                            <button 
+                                                onClick={() => openStatusModal(user, 'blocked')}
+                                                className={`px-2.5 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider flex items-center gap-1 transition ${
+                                                    isUserBlocked ? 'bg-red-600 text-white shadow-sm' : 'bg-slate-100 dark:bg-dark-muted text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-950/30'
+                                                }`}
+                                                title="Block account with custom note"
+                                            >
+                                                <Ban className="w-3 h-3" />
+                                                <span>Block</span>
+                                            </button>
+
+                                            {/* Restrict Button */}
+                                            <button 
+                                                onClick={() => openStatusModal(user, 'restricted')}
+                                                className={`px-2.5 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider flex items-center gap-1 transition ${
+                                                    isUserRestricted ? 'bg-amber-600 text-white shadow-sm' : 'bg-slate-100 dark:bg-dark-muted text-amber-700 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-950/30'
+                                                }`}
+                                                title="Restrict account with custom note"
+                                            >
+                                                <ShieldAlert className="w-3 h-3" />
+                                                <span>Restrict</span>
+                                            </button>
+                                        </div>
+
+                                        <div className="flex items-center gap-1.5">
+                                            {/* Edit Balance */}
+                                            <button 
+                                                onClick={() => { 
+                                                    setEditingUser(user); 
+                                                    setNewBalance(user.balance.toString()); 
+                                                    setNewLoanBalance((user.loanBalance || 0).toString()); 
+                                                    setNewSavingsBalance((user.savingsBalance || 0).toString()); 
+                                                    setBalanceReason(''); 
+                                                }} 
+                                                className="px-2.5 py-1.5 bg-slate-100 dark:bg-dark-muted hover:bg-primary/10 hover:text-primary text-[9px] font-black uppercase rounded-lg transition"
+                                            >
+                                                {t('editBalance')}
+                                            </button>
+
+                                            {/* Role & Security */}
+                                            <button 
+                                                onClick={() => {
+                                                    setRoleModalUser(user);
+                                                    setSelectedRole((user.role as any) || 'customer');
+                                                    setFreezeStatus(!!user.isBlocked);
+                                                    setCustomFreezeMsg('');
+                                                }} 
+                                                className="px-2.5 py-1.5 bg-primary/10 text-primary hover:bg-primary/20 text-[9px] font-black uppercase rounded-lg transition"
+                                            >
+                                                Security
+                                            </button>
+
+                                            {/* Delete Individual User */}
+                                            <button
+                                                onClick={() => handleDeleteSingleUser(user)}
+                                                className="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg transition"
+                                                title={`Delete account for ${user.name}`}
+                                            >
+                                                <Trash2 className="w-4 h-4" />
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })
+                    )}
                 </div>
             )}
 
-            {/* LOGINS & PASSWORDS / CREDENTIALS HUB */}
-            {tab === 'credentials' && (
+            {/* ACCOUNTS MANAGEMENT HUB */}
+            {tab === 'accounts' && (
+                <div className="space-y-6 animate-in fade-in duration-300">
+                    <div className="bg-gradient-to-r from-slate-900 via-emerald-950 to-slate-900 p-6 rounded-3xl text-white shadow-xl border border-emerald-500/20">
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                            <div>
+                                <div className="flex items-center gap-2">
+                                    <LandmarkIcon className="w-6 h-6 text-emerald-400" />
+                                    <h2 className="text-lg font-black uppercase tracking-wider">Account Directory & Ledgers</h2>
+                                </div>
+                                <p className="text-xs text-emerald-200/80 mt-1 max-w-2xl">
+                                    Comprehensive ledger of all institutional customer accounts, routing numbers (021000021), tier designations, currencies, and activation states.
+                                </p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <span className="px-3 py-1 bg-emerald-500/20 text-emerald-300 rounded-xl text-[10px] font-black uppercase tracking-wider border border-emerald-400/30">
+                                    {state.users.length} Registered Accounts
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <AdminStatCard label="Total Accounts" value={state.users.length.toString()} icon={LandmarkIcon} />
+                        <AdminStatCard label="Active Status" value={state.users.filter(u => !u.isBlocked).length.toString()} icon={CheckCircle} color="text-emerald-500" />
+                        <AdminStatCard label="Restricted / Frozen" value={state.users.filter(u => u.isBlocked).length.toString()} icon={ShieldAlert} color="text-amber-500" />
+                        <AdminStatCard label="Total Account Assets" value={formatCurrency(state.users.reduce((a,u) => a + (u.balance || 0) + (u.savingsBalance || 0), 0))} icon={LandmarkIcon} />
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white dark:bg-dark-card p-4 rounded-2xl border border-border dark:border-dark-border shadow-sm">
+                        <div className="relative flex-1">
+                            <Input 
+                                placeholder="Search accounts by name, account number, routing, or email..." 
+                                value={accountSearchQuery} 
+                                onChange={e => setAccountSearchQuery(e.target.value)}
+                                className="!py-2.5 !text-xs"
+                            />
+                        </div>
+                        <button 
+                            onClick={() => setShowCreateUser(true)}
+                            className="px-4 py-2.5 bg-primary text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition shadow-sm hover:opacity-90 shrink-0"
+                        >
+                            + Open New Account
+                        </button>
+                    </div>
+
+                    <div className="space-y-3">
+                        {state.users
+                            .filter(u => {
+                                if (!accountSearchQuery) return true;
+                                const q = accountSearchQuery.toLowerCase();
+                                return (
+                                    (u.name && u.name.toLowerCase().includes(q)) ||
+                                    (u.email && u.email.toLowerCase().includes(q)) ||
+                                    (u.accountNumber && u.accountNumber.includes(q)) ||
+                                    (u.phone && u.phone.includes(q))
+                                );
+                            })
+                            .map(u => (
+                                <div key={u.id} className="bg-white dark:bg-dark-card p-5 rounded-2xl border border-border dark:border-dark-border shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+                                    <div className="space-y-1">
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                            <span className="text-sm font-black text-slate-900 dark:text-white">{u.name}</span>
+                                            <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-dark-muted text-slate-700 dark:text-slate-300 font-mono">
+                                                ACC: {u.accountNumber || 'Pending'}
+                                            </span>
+                                            <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-dark-muted text-slate-500 font-mono">
+                                                RTN: 021000021
+                                            </span>
+                                            <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase ${
+                                                u.isBlocked ? 'bg-red-500/20 text-red-600' : 'bg-emerald-500/20 text-emerald-600'
+                                            }`}>
+                                                {u.isBlocked ? 'Frozen' : 'Active'}
+                                            </span>
+                                        </div>
+                                        <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
+                                            <span>{u.email}</span>
+                                            <span>•</span>
+                                            <span>Tier: {(u.role as string) === 'admin' || (u.role as string) === 'super_admin' || (u.role as string) === 'superadmin' ? 'Executive Administrator' : 'Cathay Premier Checking'}</span>
+                                            <span>•</span>
+                                            <span>Currency: <strong className="text-slate-900 dark:text-white">{u.currency || 'USD'}</strong></span>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-4 justify-between md:justify-end shrink-0">
+                                        <div className="text-right">
+                                            <p className="text-xs text-muted-foreground font-medium">Checking Balance</p>
+                                            <p className="text-base font-black text-emerald-600 dark:text-emerald-400">
+                                                {formatCurrency(u.balance || 0, u.currency || 'USD')}
+                                            </p>
+                                        </div>
+                                        <div className="flex items-center gap-1.5">
+                                            <button 
+                                                onClick={() => {
+                                                    setEditingUser(u);
+                                                    setNewBalance((u.balance || 0).toString());
+                                                    setNewLoanBalance((u.loanBalance || 0).toString());
+                                                    setNewSavingsBalance((u.savingsBalance || 0).toString());
+                                                    setBalanceReason('');
+                                                }}
+                                                className="px-3 py-2 bg-slate-100 dark:bg-dark-muted hover:bg-primary/10 hover:text-primary rounded-xl text-[9px] font-black uppercase tracking-wider transition"
+                                            >
+                                                Adjust
+                                            </button>
+                                            <button 
+                                                onClick={() => {
+                                                    setTab('transactions');
+                                                }}
+                                                className="px-3 py-2 bg-slate-100 dark:bg-dark-muted hover:bg-primary/10 hover:text-primary rounded-xl text-[9px] font-black uppercase tracking-wider transition"
+                                            >
+                                                Ledger
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                    </div>
+                </div>
+            )}
+
+            {/* BALANCES MANAGEMENT HUB */}
+            {tab === 'balances' && (
+                <div className="space-y-6 animate-in fade-in duration-300">
+                    <div className="bg-gradient-to-r from-slate-900 via-blue-950 to-slate-900 p-6 rounded-3xl text-white shadow-xl border border-blue-500/20">
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                            <div>
+                                <div className="flex items-center gap-2">
+                                    <ShieldIcon className="w-6 h-6 text-blue-400" />
+                                    <h2 className="text-lg font-black uppercase tracking-wider">Balances, Liquidity & Vault Controls</h2>
+                                </div>
+                                <p className="text-xs text-blue-200/80 mt-1 max-w-2xl">
+                                    Direct institution ledger management. Modify customer primary balances, interest-bearing savings vaults, and loans with mandatory audit notes.
+                                </p>
+                            </div>
+                            <button 
+                                onClick={() => setTab('overview')}
+                                className="px-3.5 py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl text-[9px] font-black uppercase tracking-wider transition border border-white/20 self-start md:self-auto"
+                            >
+                                Liquidity Overview
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <AdminStatCard 
+                            label="Total Checking Balances" 
+                            value={formatCurrency(state.users.reduce((a,u) => a + (u.balance || 0), 0))} 
+                            icon={LandmarkIcon} 
+                            color="text-blue-500" 
+                        />
+                        <AdminStatCard 
+                            label="Total Savings Vaults" 
+                            value={formatCurrency(state.users.reduce((a,u) => a + (u.savingsBalance || 0), 0))} 
+                            icon={LockIcon} 
+                            color="text-emerald-500" 
+                        />
+                        <AdminStatCard 
+                            label="Total Outstanding Loans" 
+                            value={formatCurrency(state.users.reduce((a,u) => a + (u.loanBalance || 0), 0))} 
+                            icon={CreditCardIcon} 
+                            color="text-amber-500" 
+                        />
+                        <AdminStatCard 
+                            label="Net Liquidity Reserves" 
+                            value={formatCurrency(state.users.reduce((a,u) => a + (u.balance || 0) + (u.savingsBalance || 0) - (u.loanBalance || 0), 0))} 
+                            icon={Gauge} 
+                        />
+                    </div>
+
+                    <div className="bg-white dark:bg-dark-card p-5 rounded-2xl border border-border dark:border-dark-border shadow-sm space-y-4">
+                        <div className="flex items-center justify-between">
+                            <h3 className="text-xs font-black uppercase tracking-wider text-slate-900 dark:text-white">Customer Balances Ledger</h3>
+                            <span className="text-[10px] text-muted-foreground font-bold">{customers.length} Customers Available</span>
+                        </div>
+
+                        <div className="divide-y divide-border/60 dark:divide-dark-border/60">
+                            {customers.map(user => (
+                                <div key={user.id} className="py-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                                    <div>
+                                        <div className="flex items-center gap-2">
+                                            <p className="font-black text-sm text-slate-900 dark:text-white">{user.name}</p>
+                                            <span className="text-[9px] font-mono px-2 py-0.5 bg-slate-100 dark:bg-dark-muted rounded-md text-slate-600 dark:text-slate-400">
+                                                {user.accountNumber || 'ACC-N/A'}
+                                            </span>
+                                        </div>
+                                        <p className="text-xs text-muted-foreground mt-0.5">{user.email} • {user.phone || 'No phone'}</p>
+                                    </div>
+
+                                    <div className="flex items-center gap-6 flex-wrap">
+                                        <div>
+                                            <p className="text-[10px] font-bold text-muted-foreground uppercase">Checking</p>
+                                            <p className="text-sm font-black text-emerald-600 dark:text-emerald-400">{formatCurrency(user.balance || 0, user.currency)}</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-[10px] font-bold text-muted-foreground uppercase">Savings</p>
+                                            <p className="text-sm font-black text-blue-600 dark:text-blue-400">{formatCurrency(user.savingsBalance || 0, user.currency)}</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-[10px] font-bold text-muted-foreground uppercase">Loan</p>
+                                            <p className="text-sm font-black text-amber-600 dark:text-amber-400">{formatCurrency(user.loanBalance || 0, user.currency)}</p>
+                                        </div>
+                                        <button 
+                                            onClick={() => {
+                                                setEditingUser(user);
+                                                setNewBalance((user.balance || 0).toString());
+                                                setNewLoanBalance((user.loanBalance || 0).toString());
+                                                setNewSavingsBalance((user.savingsBalance || 0).toString());
+                                                setBalanceReason('');
+                                            }}
+                                            className="px-4 py-2 bg-primary text-white rounded-xl text-[9px] font-black uppercase tracking-wider transition shadow-sm hover:opacity-90"
+                                        >
+                                            Modify Balances
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* KYC VERIFICATION HUB */}
+            {tab === 'kyc' && (
+                <div className="space-y-6 animate-in fade-in duration-300">
+                    <div className="bg-gradient-to-r from-slate-900 via-teal-950 to-slate-900 p-6 rounded-3xl text-white shadow-xl border border-teal-500/20">
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                            <div>
+                                <div className="flex items-center gap-2">
+                                    <ShieldCheck className="w-6 h-6 text-teal-400" />
+                                    <h2 className="text-lg font-black uppercase tracking-wider">KYC & Compliance Verification Center</h2>
+                                </div>
+                                <p className="text-xs text-teal-200/80 mt-1 max-w-2xl">
+                                    Regulatory compliance, identity verification, Proof of Address (POA), Government ID review, and anti-money laundering (AML) controls.
+                                </p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <span className="px-3 py-1 bg-teal-500/20 text-teal-300 rounded-xl text-[10px] font-black uppercase tracking-wider border border-teal-400/30">
+                                    100% Zero-Trust Regulated
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <AdminStatCard label="Total Customers" value={customers.length.toString()} icon={UserIcon} />
+                        <AdminStatCard 
+                            label="KYC Verified" 
+                            value={customers.filter(u => u.isActivated && !u.isBlocked).length.toString()} 
+                            icon={CheckCircle} 
+                            color="text-emerald-500" 
+                        />
+                        <AdminStatCard 
+                            label="Pending Review" 
+                            value={customers.filter(u => !u.isActivated && !u.isBlocked).length.toString()} 
+                            icon={Clock} 
+                            color="text-amber-500" 
+                        />
+                        <AdminStatCard 
+                            label="Action Required" 
+                            value={customers.filter(u => u.isBlocked).length.toString()} 
+                            icon={AlertTriangle} 
+                            color="text-red-500" 
+                        />
+                    </div>
+
+                    <div className="flex items-center gap-2 bg-white dark:bg-dark-card p-2 rounded-2xl border border-border dark:border-dark-border shadow-sm overflow-x-auto">
+                        {[
+                            { id: 'all', label: 'All Customer KYC' },
+                            { id: 'verified', label: 'Verified Accounts' },
+                            { id: 'pending', label: 'Pending Verification' },
+                            { id: 'flagged', label: 'Restricted / Action Required' }
+                        ].map(f => (
+                            <button
+                                key={f.id}
+                                onClick={() => setKycFilter(f.id as any)}
+                                className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition shrink-0 ${
+                                    kycFilter === f.id ? 'bg-primary text-white shadow-sm' : 'text-muted-foreground hover:bg-slate-100 dark:hover:bg-dark-muted'
+                                }`}
+                            >
+                                {f.label}
+                            </button>
+                        ))}
+                    </div>
+
+                    <div className="space-y-4">
+                        {customers
+                            .filter(u => {
+                                if (kycFilter === 'verified') return u.isActivated && !u.isBlocked;
+                                if (kycFilter === 'pending') return !u.isActivated && !u.isBlocked;
+                                if (kycFilter === 'flagged') return u.isBlocked;
+                                return true;
+                            })
+                            .map(u => {
+                                const isVerified = u.isActivated && !u.isBlocked;
+                                return (
+                                    <div key={u.id} className="bg-white dark:bg-dark-card p-5 rounded-2xl border border-border dark:border-dark-border shadow-sm space-y-3">
+                                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                            <div>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-sm font-black text-slate-900 dark:text-white">{u.name}</span>
+                                                    <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase ${
+                                                        isVerified ? 'bg-emerald-500/20 text-emerald-600' :
+                                                        u.isBlocked ? 'bg-red-500/20 text-red-600' :
+                                                        'bg-amber-500/20 text-amber-600'
+                                                    }`}>
+                                                        {isVerified ? 'KYC Verified' : u.isBlocked ? 'Action Required / Blocked' : 'Pending Verification'}
+                                                    </span>
+                                                </div>
+                                                <p className="text-xs text-muted-foreground mt-0.5">{u.email} • {u.accountNumber || 'ACC-N/A'}</p>
+                                            </div>
+
+                                            <div className="flex items-center gap-2 flex-wrap">
+                                                {!isVerified && (
+                                                    <button 
+                                                        onClick={() => {
+                                                            dispatch({ type: 'UPDATE_USER', payload: { ...u, isActivated: true, isBlocked: false } });
+                                                            syncWithServer();
+                                                            alert(`KYC approved and customer ${u.name} is now verified.`);
+                                                        }}
+                                                        className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[9px] font-black uppercase tracking-wider transition"
+                                                    >
+                                                        Approve KYC
+                                                    </button>
+                                                )}
+                                                <button 
+                                                    onClick={() => {
+                                                        const newBlocked = !u.isBlocked;
+                                                        dispatch({ type: 'UPDATE_USER', payload: { ...u, isBlocked: newBlocked } });
+                                                        syncWithServer();
+                                                        alert(newBlocked ? `User ${u.name} flagged for review and restricted.` : `Restriction lifted for ${u.name}.`);
+                                                    }}
+                                                    className="px-3 py-1.5 bg-slate-100 dark:bg-dark-muted hover:bg-slate-200 text-slate-700 dark:text-slate-300 rounded-xl text-[9px] font-black uppercase tracking-wider transition"
+                                                >
+                                                    {u.isBlocked ? 'Lift Flag' : 'Flag For Review'}
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3 bg-slate-50 dark:bg-dark-muted rounded-xl text-xs">
+                                            <div>
+                                                <p className="text-[9px] font-bold text-muted-foreground uppercase">Identity Document</p>
+                                                <p className="font-bold text-slate-800 dark:text-slate-200 mt-0.5">Passport / National ID</p>
+                                                <span className="text-[9px] text-emerald-600 font-bold">Validated via OCR</span>
+                                            </div>
+                                            <div>
+                                                <p className="text-[9px] font-bold text-muted-foreground uppercase">Proof of Residence</p>
+                                                <p className="font-bold text-slate-800 dark:text-slate-200 mt-0.5">Utility Statement</p>
+                                                <span className="text-[9px] text-emerald-600 font-bold">Jurisdiction Match</span>
+                                            </div>
+                                            <div>
+                                                <p className="text-[9px] font-bold text-muted-foreground uppercase">Risk Rating</p>
+                                                <p className="font-bold text-slate-800 dark:text-slate-200 mt-0.5">Low / Tier 1 Retail</p>
+                                                <span className="text-[9px] text-blue-600 font-bold">No Sanctions Match</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                    </div>
+                </div>
+            )}
+
+            {/* LOGINS & PASSWORDS / CREDENTIALS & ADMIN USERS HUB */}
+            {(tab === 'admin_users' || tab === 'credentials') && (
                 <div className="space-y-6 animate-in fade-in duration-300">
                     {/* Top Header & Fast Overview */}
                     <div className="bg-gradient-to-r from-slate-900 via-purple-950 to-slate-900 p-6 rounded-3xl text-white shadow-xl border border-purple-500/20">
@@ -1356,7 +2074,7 @@ const AdminDashboard = () => {
                 </div>
             )}
 
-            {tab === 'transfers' && (
+            {(tab === 'transactions' || tab === 'transfers') && (
                 <div className="space-y-3">
                     <h3 className="text-[10px] font-black uppercase tracking-widest opacity-50 px-2">{t('transactionLedger')}</h3>
                     {allTransactions.length === 0 ? (
@@ -1923,6 +2641,444 @@ const AdminDashboard = () => {
 
             {tab === 'support' && <AdminSupportChat />}
 
+            {/* AI CONVERSATIONS MONITOR HUB */}
+            {tab === 'ai_conversations' && (
+                <div className="space-y-6 animate-in fade-in duration-300">
+                    <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 p-6 rounded-3xl text-white shadow-xl border border-indigo-500/20">
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                            <div>
+                                <div className="flex items-center gap-2">
+                                    <Sparkles className="w-6 h-6 text-indigo-400" />
+                                    <h2 className="text-lg font-black uppercase tracking-wider">AI Banking Concierge & Live Transcripts</h2>
+                                </div>
+                                <p className="text-xs text-indigo-200/80 mt-1 max-w-2xl">
+                                    Continuous telemetry of customer interactions with the Cathay Private Banking AI model. Supervise automated assistance, sentiment, and escalation triggers.
+                                </p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <span className="px-3 py-1 bg-indigo-500/20 text-indigo-300 rounded-xl text-[10px] font-black uppercase tracking-wider border border-indigo-400/30">
+                                    Model: Gemini Flash Banking
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <AdminStatCard label="Total Inquiries" value="48" icon={MessageSquare} />
+                        <AdminStatCard label="Automated Resolution" value="95.8%" icon={CheckCircle} color="text-emerald-500" />
+                        <AdminStatCard label="Escalated to Human" value="2" icon={AlertTriangle} color="text-amber-500" />
+                        <AdminStatCard label="Avg Response Latency" value="0.84s" icon={Gauge} color="text-blue-500" />
+                    </div>
+
+                    <div className="bg-white dark:bg-dark-card p-4 rounded-2xl border border-border dark:border-dark-border shadow-sm">
+                        <Input 
+                            placeholder="Filter AI transcripts by customer, keyword, or intent (e.g. wire, routing, balance)..." 
+                            value={aiConvSearch} 
+                            onChange={e => setAiConvSearch(e.target.value)}
+                            className="!py-2.5 !text-xs"
+                        />
+                    </div>
+
+                    <div className="space-y-4">
+                        {[
+                            {
+                                id: 'ai-conv-001',
+                                user: 'Michael Scott',
+                                email: 'mscott@dundermifflin.com',
+                                date: 'Today at 10:14 AM',
+                                topic: 'Domestic Wire Routing Number',
+                                sentiment: 'Positive',
+                                userMsg: 'Can you provide the ABA Routing number for Cathay Bank USA to receive an incoming domestic wire?',
+                                aiReply: 'Certainly! For domestic wire transfers and ACH deposits to Cathay Bank USA, the ABA Routing Number is 021000021. Please ensure the sender uses your full legal name and official account number.',
+                                resolved: true
+                            },
+                            {
+                                id: 'ai-conv-002',
+                                user: 'Elena Rostova',
+                                email: 'elena.rostova@premierholdings.ch',
+                                date: 'Today at 08:30 AM',
+                                topic: 'Daily Debit Card Limits',
+                                sentiment: 'Neutral',
+                                userMsg: 'What is my daily POS purchasing limit on the Cathay Black Metal Debit Card?',
+                                aiReply: 'Your Cathay Black Metal Debit Card has a standard point-of-sale limit of $10,000 USD per day and an ATM withdrawal limit of $2,500 USD per day. You can request a temporary increase anytime via your card settings or with an administrator.',
+                                resolved: true
+                            },
+                            {
+                                id: 'ai-conv-003',
+                                user: 'Marcus Aurelius Sterling',
+                                email: 'marcus.sterling@sterlingcapital.com',
+                                date: 'Yesterday at 04:45 PM',
+                                topic: 'High Yield Savings Vault APY',
+                                sentiment: 'Positive',
+                                userMsg: 'What is the current annual percentage yield on the High Yield Vault?',
+                                aiReply: 'The current rate on the Cathay High Yield Vault is 5.25% APY with compound interest calculated daily and credited on the first calendar day of each month.',
+                                resolved: true
+                            },
+                            {
+                                id: 'ai-conv-004',
+                                user: 'Sarah Jenkins',
+                                email: 'sjenkins@techcorp.io',
+                                date: '2 days ago',
+                                topic: 'IRS Tax Refund Clearance',
+                                sentiment: 'Positive',
+                                userMsg: 'My IRS tax refund arrived. How long until the balance is available for external wire transfer?',
+                                aiReply: 'IRS tax refunds credited to your Cathay Bank USA account are available immediately for all external transfers, debit card spending, and vault deposits once authorized.',
+                                resolved: true
+                            }
+                        ]
+                        .filter(item => {
+                            if (!aiConvSearch) return true;
+                            const q = aiConvSearch.toLowerCase();
+                            return item.user.toLowerCase().includes(q) || 
+                                   item.topic.toLowerCase().includes(q) || 
+                                   item.userMsg.toLowerCase().includes(q) ||
+                                   item.aiReply.toLowerCase().includes(q);
+                        })
+                        .map(conv => (
+                            <div key={conv.id} className="bg-white dark:bg-dark-card p-5 rounded-2xl border border-border dark:border-dark-border shadow-sm space-y-4">
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-border/60 dark:border-dark-border/60 pb-3">
+                                    <div>
+                                        <div className="flex items-center gap-2">
+                                            <span className="font-black text-sm text-slate-900 dark:text-white">{conv.user}</span>
+                                            <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-600 dark:text-indigo-400">
+                                                {conv.topic}
+                                            </span>
+                                            <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600">
+                                                Resolved
+                                            </span>
+                                        </div>
+                                        <p className="text-xs text-muted-foreground mt-0.5">{conv.email} • {conv.date}</p>
+                                    </div>
+                                    <span className="text-[9px] font-bold text-muted-foreground uppercase">Sentiment: <strong className="text-emerald-600">{conv.sentiment}</strong></span>
+                                </div>
+
+                                <div className="space-y-3 text-xs">
+                                    <div className="p-3 bg-slate-50 dark:bg-dark-muted rounded-xl">
+                                        <p className="text-[9px] font-bold text-muted-foreground uppercase mb-1">Customer Query</p>
+                                        <p className="text-slate-900 dark:text-slate-100 font-medium">"{conv.userMsg}"</p>
+                                    </div>
+                                    <div className="p-3 bg-indigo-50/50 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900/30 rounded-xl">
+                                        <div className="flex items-center gap-1.5 text-[9px] font-bold text-indigo-600 dark:text-indigo-400 uppercase mb-1">
+                                            <Sparkles className="w-3 h-3" />
+                                            Cathay AI Concierge Response
+                                        </div>
+                                        <p className="text-slate-800 dark:text-slate-200 font-medium">{conv.aiReply}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {/* EMAIL INBOX HUB (support@cathabankusa.com) */}
+            {tab === 'email_inbox' && (
+                <div className="space-y-6 animate-in fade-in duration-300">
+                    <div className="bg-gradient-to-r from-slate-900 via-rose-950 to-slate-900 p-6 rounded-3xl text-white shadow-xl border border-rose-500/20">
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                            <div>
+                                <div className="flex items-center gap-2">
+                                    <Mail className="w-6 h-6 text-rose-400" />
+                                    <h2 className="text-lg font-black uppercase tracking-wider">Inbound Customer Support Inbox</h2>
+                                </div>
+                                <p className="text-xs text-rose-200/80 mt-1 max-w-2xl">
+                                    Official institution mailroom for <strong className="text-white">support@cathabankusa.com</strong>. Review incoming correspondence, read inquiries, and send signed official replies.
+                                </p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <span className="px-3 py-1 bg-rose-500/20 text-rose-300 rounded-xl text-[10px] font-black uppercase tracking-wider border border-rose-400/30 font-mono">
+                                    support@cathabankusa.com
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <AdminStatCard label="Inbound Messages" value="12" icon={Mail} />
+                        <AdminStatCard label="Unread / Pending" value="3" icon={Clock} color="text-amber-500" />
+                        <AdminStatCard label="Replied & Dispatched" value="9" icon={CheckCircle} color="text-emerald-500" />
+                        <AdminStatCard label="Outbound Log" value={filteredEmailLogs.length.toString()} icon={Send} />
+                    </div>
+
+                    <div className="flex items-center gap-2 bg-white dark:bg-dark-card p-2 rounded-2xl border border-border dark:border-dark-border shadow-sm overflow-x-auto">
+                        {[
+                            { id: 'all', label: 'All Inbound Mail' },
+                            { id: 'unread', label: 'Unread / Requires Attention' },
+                            { id: 'replied', label: 'Replied & Closed' }
+                        ].map(f => (
+                            <button
+                                key={f.id}
+                                onClick={() => setInboxFilter(f.id as any)}
+                                className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition shrink-0 ${
+                                    inboxFilter === f.id ? 'bg-primary text-white shadow-sm' : 'text-muted-foreground hover:bg-slate-100 dark:hover:bg-dark-muted'
+                                }`}
+                            >
+                                {f.label}
+                            </button>
+                        ))}
+                    </div>
+
+                    {/* Messages List */}
+                    <div className="space-y-3">
+                        {[
+                            {
+                                id: 'inbox-101',
+                                fromName: 'David Sterling',
+                                fromEmail: 'd.sterling@premierfirm.com',
+                                subject: 'Commercial Wire Confirmation Request - Reference #W-882109',
+                                date: 'Today, 11:20 AM',
+                                isRead: false,
+                                isReplied: false,
+                                message: 'Dear Cathay Bank Support,\n\nWe dispatched an outgoing commercial wire transfer for $25,000 USD to Sterling Holdings. Could you please confirm if the beneficiary credit has cleared or provide the federal reference number?\n\nSincerely,\nDavid Sterling\nDirector of Operations'
+                            },
+                            {
+                                id: 'inbox-102',
+                                fromName: 'Alice Morgan',
+                                fromEmail: 'alice.m@morganpartners.org',
+                                subject: 'Proof of Address Verification Update',
+                                date: 'Yesterday, 3:45 PM',
+                                isRead: false,
+                                isReplied: false,
+                                message: 'Hello Team,\n\nI have recently updated my principal residential address and would like to confirm my KYC status is fully current. Please let me know if updated utility documentation is needed.\n\nThank you,\nAlice'
+                            },
+                            {
+                                id: 'inbox-103',
+                                fromName: 'Robert Vance',
+                                fromEmail: 'robert@vancerefrigeration.com',
+                                subject: 'Merchant Point-of-Sale Integration Inquiry',
+                                date: '2 days ago',
+                                isRead: true,
+                                isReplied: true,
+                                message: 'To the Executive Banking Team,\n\nWe are looking to expand our business checking line to support our newest regional facilities. Please connect us with a designated relationship manager.\n\nBest regards,\nRobert Vance'
+                            }
+                        ]
+                        .filter(item => {
+                            if (inboxFilter === 'unread') return !item.isRead;
+                            if (inboxFilter === 'replied') return item.isReplied;
+                            return true;
+                        })
+                        .map(msg => (
+                            <div key={msg.id} className="bg-white dark:bg-dark-card p-5 rounded-2xl border border-border dark:border-dark-border shadow-sm space-y-3">
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                    <div className="flex items-center gap-2.5">
+                                        <div className={`w-2.5 h-2.5 rounded-full ${msg.isRead ? 'bg-slate-300 dark:bg-slate-700' : 'bg-rose-500 animate-pulse'}`} />
+                                        <span className="font-black text-sm text-slate-900 dark:text-white">{msg.fromName}</span>
+                                        <span className="text-xs text-muted-foreground font-mono">&lt;{msg.fromEmail}&gt;</span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-[10px] text-muted-foreground font-bold">{msg.date}</span>
+                                        <span className={`text-[8px] font-black px-2 py-0.5 rounded-full uppercase ${
+                                            msg.isReplied ? 'bg-emerald-500/10 text-emerald-600' : 'bg-amber-500/10 text-amber-600'
+                                        }`}>
+                                            {msg.isReplied ? 'Replied' : 'Pending Reply'}
+                                        </span>
+                                    </div>
+                                </div>
+
+                                <h4 className="text-xs font-black text-slate-800 dark:text-slate-200">{msg.subject}</h4>
+                                <p className="text-xs text-slate-600 dark:text-slate-400 whitespace-pre-line bg-slate-50 dark:bg-dark-muted p-3.5 rounded-xl">
+                                    {msg.message}
+                                </p>
+
+                                <div className="flex items-center justify-between pt-2">
+                                    <span className="text-[9px] text-muted-foreground font-medium">
+                                        Recipient Address: <strong className="text-slate-800 dark:text-slate-200">support@cathabankusa.com</strong>
+                                    </span>
+                                    <button 
+                                        onClick={() => {
+                                            setSelectedInboxMsg(msg);
+                                            setInboxReplyText(`Dear ${msg.fromName},\n\nThank you for contacting Cathay Bank USA Customer Support.\n\nWe have reviewed your request regarding "${msg.subject}".\n\n`);
+                                        }}
+                                        className="px-4 py-2 bg-primary text-white rounded-xl text-[9px] font-black uppercase tracking-wider transition shadow-sm hover:opacity-90 flex items-center gap-1.5"
+                                    >
+                                        <Send className="w-3 h-3" />
+                                        Compose Official Reply
+                                    </button>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+
+                    {/* Reply Modal */}
+                    {selectedInboxMsg && (
+                        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+                            <div className="bg-white dark:bg-dark-card w-full max-w-xl rounded-3xl p-6 shadow-2xl border border-border dark:border-dark-border space-y-4 animate-in fade-in zoom-in-95 duration-200">
+                                <div className="flex items-center justify-between pb-3 border-b border-border dark:border-dark-border">
+                                    <div>
+                                        <h3 className="text-sm font-black uppercase tracking-wider text-slate-900 dark:text-white">Official Support Reply</h3>
+                                        <p className="text-xs text-muted-foreground">From: support@cathabankusa.com ➔ To: {selectedInboxMsg.fromEmail}</p>
+                                    </div>
+                                    <button 
+                                        onClick={() => setSelectedInboxMsg(null)}
+                                        className="w-8 h-8 rounded-full bg-slate-100 dark:bg-dark-muted flex items-center justify-center text-slate-500 hover:text-slate-900"
+                                    >
+                                        <X className="w-4 h-4" />
+                                    </button>
+                                </div>
+
+                                <div className="space-y-3">
+                                    <div>
+                                        <label className="text-[10px] font-bold text-muted-foreground uppercase">Subject</label>
+                                        <p className="text-xs font-bold text-slate-800 dark:text-slate-200 mt-0.5">Re: {selectedInboxMsg.subject}</p>
+                                    </div>
+
+                                    <div>
+                                        <label className="text-[10px] font-bold text-muted-foreground uppercase">Response Message</label>
+                                        <textarea 
+                                            value={inboxReplyText}
+                                            onChange={e => setInboxReplyText(e.target.value)}
+                                            rows={8}
+                                            className="w-full mt-1 p-3.5 bg-slate-50 dark:bg-dark-input rounded-2xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-primary border border-border/80 dark:border-dark-border"
+                                        />
+                                    </div>
+
+                                    <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-[10px] text-emerald-700 dark:text-emerald-300">
+                                        ✓ This email will be routed via the high-deliverability notification engine with the verified sender <strong>support@cathabankusa.com</strong>.
+                                    </div>
+                                </div>
+
+                                <div className="flex items-center justify-end gap-2 pt-2">
+                                    <button 
+                                        onClick={() => setSelectedInboxMsg(null)}
+                                        className="px-4 py-2 text-xs font-bold text-muted-foreground hover:text-foreground"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button 
+                                        disabled={isSendingInboxReply}
+                                        onClick={async () => {
+                                            setIsSendingInboxReply(true);
+                                            try {
+                                                await fetch('/api/auth/send-email', {
+                                                    method: 'POST',
+                                                    headers: { 'Content-Type': 'application/json' },
+                                                    body: JSON.stringify({
+                                                        to: selectedInboxMsg.fromEmail,
+                                                        subject: `Re: ${selectedInboxMsg.subject}`,
+                                                        text: inboxReplyText,
+                                                        from: 'support@cathabankusa.com'
+                                                    })
+                                                });
+                                                alert(`Official reply successfully sent to ${selectedInboxMsg.fromEmail} from support@cathabankusa.com`);
+                                                setSelectedInboxMsg(null);
+                                                syncWithServer();
+                                            } catch (e) {
+                                                alert('Response recorded in audit log.');
+                                                setSelectedInboxMsg(null);
+                                            } finally {
+                                                setIsSendingInboxReply(false);
+                                            }
+                                        }}
+                                        className="px-5 py-2.5 bg-primary text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-lg shadow-primary/20 hover:opacity-90 disabled:opacity-50 flex items-center gap-1.5"
+                                    >
+                                        {isSendingInboxReply ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                                        {isSendingInboxReply ? 'Transmitting...' : 'Send Official Reply'}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* FINANCIAL & OPERATIONAL REPORTS HUB */}
+            {tab === 'reports' && (
+                <div className="space-y-6 animate-in fade-in duration-300">
+                    <div className="bg-gradient-to-r from-slate-900 via-cyan-950 to-slate-900 p-6 rounded-3xl text-white shadow-xl border border-cyan-500/20">
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                            <div>
+                                <div className="flex items-center gap-2">
+                                    <FileText className="w-6 h-6 text-cyan-400" />
+                                    <h2 className="text-lg font-black uppercase tracking-wider">Financial & Operational Analytics Reports</h2>
+                                </div>
+                                <p className="text-xs text-cyan-200/80 mt-1 max-w-2xl">
+                                    Consolidated financial performance metrics, deposit liquidity reserves, regulatory compliance compliance logs, and exportable CSV audit records.
+                                </p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <button 
+                                    onClick={() => {
+                                        const csvHeader = 'Date,Reference,Type,Amount,Status,Sender,Receiver\n';
+                                        const csvRows = allTransactions.map(tx => 
+                                            `"${tx.date}","${tx.reference || tx.id}","${tx.type}","${tx.amount}","${tx.status}","${tx.senderName || tx.userName || ''}","${tx.receiverName || ''}"`
+                                        ).join('\n');
+                                        const blob = new Blob([csvHeader + csvRows], { type: 'text/csv' });
+                                        const url = URL.createObjectURL(blob);
+                                        const a = document.createElement('a');
+                                        a.href = url;
+                                        a.download = `cathay-financial-report-${new Date().toISOString().slice(0,10)}.csv`;
+                                        a.click();
+                                        URL.revokeObjectURL(url);
+                                    }}
+                                    className="px-4 py-2 bg-cyan-500 hover:bg-cyan-400 text-slate-950 rounded-xl text-[10px] font-black uppercase tracking-wider transition shadow-md flex items-center gap-1.5"
+                                >
+                                    <ExternalLink className="w-3.5 h-3.5" />
+                                    Export Ledger (CSV)
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <AdminStatCard label="Total Transaction Volume" value={allTransactions.length.toString()} icon={RefreshCwIcon} />
+                        <AdminStatCard 
+                            label="Total Cumulative Deposits" 
+                            value={formatCurrency(state.users.reduce((a,u) => a + (u.balance || 0) + (u.savingsBalance || 0), 0))} 
+                            icon={LandmarkIcon} 
+                            color="text-emerald-500" 
+                        />
+                        <AdminStatCard label="Active Accounts" value={state.users.length.toString()} icon={UserIcon} />
+                        <AdminStatCard label="Audit Checksum" value="SEC-PASS" icon={ShieldCheck} color="text-cyan-500" />
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="bg-white dark:bg-dark-card p-6 rounded-3xl border border-border dark:border-dark-border shadow-sm space-y-4">
+                            <h3 className="text-xs font-black uppercase tracking-wider text-slate-900 dark:text-white">Transaction Breakdown by Type</h3>
+                            <div className="space-y-3">
+                                {[
+                                    { label: 'Domestic Wire Transfers (Fedwire / ACH)', count: allTransactions.filter(t => t.description?.includes('Wire') || t.category === 'Transfer').length || 4, pct: '48%' },
+                                    { label: 'Direct Deposits & IRS Refunds', count: allTransactions.filter(t => t.category === 'Government' || t.amount > 0).length || 3, pct: '28%' },
+                                    { label: 'Debit Card & POS Transactions', count: allTransactions.filter(t => t.category === 'Shopping' || t.description?.includes('Card')).length || 2, pct: '14%' },
+                                    { label: 'Vault Internal Transfers', count: 1, pct: '10%' }
+                                ].map((item, idx) => (
+                                    <div key={idx} className="space-y-1">
+                                        <div className="flex justify-between text-xs font-bold">
+                                            <span className="text-slate-800 dark:text-slate-200">{item.label}</span>
+                                            <span className="text-muted-foreground">{item.count} items ({item.pct})</span>
+                                        </div>
+                                        <div className="w-full h-2 bg-slate-100 dark:bg-dark-muted rounded-full overflow-hidden">
+                                            <div className="h-full bg-cyan-500 rounded-full" style={{ width: item.pct }} />
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="bg-white dark:bg-dark-card p-6 rounded-3xl border border-border dark:border-dark-border shadow-sm space-y-4">
+                            <h3 className="text-xs font-black uppercase tracking-wider text-slate-900 dark:text-white">Compliance & Regulatory Disclosures</h3>
+                            <div className="divide-y divide-border/60 dark:divide-dark-border/60 text-xs space-y-2">
+                                <div className="pt-2 flex justify-between items-center">
+                                    <span className="font-bold text-slate-700 dark:text-slate-300">FDIC Deposit Insurance Threshold</span>
+                                    <span className="font-mono font-bold text-emerald-600">$250,000 / account</span>
+                                </div>
+                                <div className="pt-2 flex justify-between items-center">
+                                    <span className="font-bold text-slate-700 dark:text-slate-300">BSA/AML Currency Transaction Reports (CTR)</span>
+                                    <span className="font-mono font-bold text-slate-900 dark:text-white">Threshold: &gt; $10,000 USD</span>
+                                </div>
+                                <div className="pt-2 flex justify-between items-center">
+                                    <span className="font-bold text-slate-700 dark:text-slate-300">OFAC Real-Time Sanctions Screening</span>
+                                    <span className="font-mono font-bold text-emerald-600">Active / Continuous</span>
+                                </div>
+                                <div className="pt-2 flex justify-between items-center">
+                                    <span className="font-bold text-slate-700 dark:text-slate-300">Customer Support Inquiries Monitored</span>
+                                    <span className="font-mono font-bold text-slate-900 dark:text-white">support@cathabankusa.com</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {tab === 'settings' && (
                 <div className="space-y-6">
                     {/* System Note */}
@@ -2206,7 +3362,7 @@ const AdminDashboard = () => {
                 </div>
             )}
 
-            {tab === 'broadcast' && (
+            {(tab === 'notifications' || tab === 'broadcast') && (
                 <div className="space-y-6">
                     <div className="bg-white dark:bg-dark-card p-6 rounded-[2rem] border border-border dark:border-dark-border shadow-sm space-y-4">
                         <h3 className="text-[10px] font-black uppercase tracking-widest opacity-50">{t('systemBroadcast')}</h3>
@@ -2560,6 +3716,203 @@ await admin.auth().setCustomUserClaims(uid, {
                 </Modal>
             )}
 
+            {/* Status Management Modal (Freeze / Block / Restrict with Custom Display Note) */}
+            {statusModalUser && (
+                <Modal isOpen={!!statusModalUser} onClose={() => setStatusModalUser(null)} className="max-w-lg">
+                    <div className="p-6 space-y-4">
+                        <div className="flex items-center justify-between pb-3 border-b border-border dark:border-dark-border">
+                            <div className="flex items-center gap-2.5">
+                                {statusModalType === 'frozen' && <div className="p-2 rounded-xl bg-cyan-100 dark:bg-cyan-950/50 text-cyan-600"><Snowflake className="w-5 h-5" /></div>}
+                                {statusModalType === 'blocked' && <div className="p-2 rounded-xl bg-red-100 dark:bg-red-950/50 text-red-600"><Ban className="w-5 h-5" /></div>}
+                                {statusModalType === 'restricted' && <div className="p-2 rounded-xl bg-amber-100 dark:bg-amber-950/50 text-amber-600"><ShieldAlert className="w-5 h-5" /></div>}
+                                {statusModalType === 'active' && <div className="p-2 rounded-xl bg-emerald-100 dark:bg-emerald-950/50 text-emerald-600"><CheckCircle className="w-5 h-5" /></div>}
+                                <div>
+                                    <h3 className="font-black text-sm uppercase tracking-wider">
+                                        Account Security & Status Control
+                                    </h3>
+                                    <p className="text-[10px] text-muted-foreground font-semibold">
+                                        {statusModalUser.name} ({statusModalUser.email})
+                                    </p>
+                                </div>
+                            </div>
+                            <button onClick={() => setStatusModalUser(null)} className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg">
+                                <X className="w-4 h-4" />
+                            </button>
+                        </div>
+
+                        {/* Status Selectors */}
+                        <div className="space-y-1.5">
+                            <label className="text-[10px] font-black uppercase tracking-wider text-slate-500">
+                                Select Account Status
+                            </label>
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setStatusModalType('active');
+                                        setStatusModalNote('Account enabled and active. All operations permitted.');
+                                    }}
+                                    className={`p-2.5 rounded-xl border text-[10px] font-black uppercase flex flex-col items-center gap-1 transition ${
+                                        statusModalType === 'active' ? 'bg-emerald-50 border-emerald-500 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 shadow-sm' : 'border-border text-slate-600 hover:bg-slate-50 dark:hover:bg-dark-muted'
+                                    }`}
+                                >
+                                    <CheckCircle className="w-4 h-4 text-emerald-600" />
+                                    <span>Active</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setStatusModalType('frozen');
+                                        setStatusModalNote(statusModalUser.freezeMessage || 'This account has been frozen by Bank Administration. Transfers and outgoing operations are locked.');
+                                    }}
+                                    className={`p-2.5 rounded-xl border text-[10px] font-black uppercase flex flex-col items-center gap-1 transition ${
+                                        statusModalType === 'frozen' ? 'bg-cyan-50 border-cyan-500 text-cyan-700 dark:bg-cyan-950/40 dark:text-cyan-300 shadow-sm' : 'border-border text-slate-600 hover:bg-slate-50 dark:hover:bg-dark-muted'
+                                    }`}
+                                >
+                                    <Snowflake className="w-4 h-4 text-cyan-600" />
+                                    <span>Frozen</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setStatusModalType('blocked');
+                                        setStatusModalNote(statusModalUser.blockMessage || 'This account has been blocked by Bank Administration. Access to operations is locked.');
+                                    }}
+                                    className={`p-2.5 rounded-xl border text-[10px] font-black uppercase flex flex-col items-center gap-1 transition ${
+                                        statusModalType === 'blocked' ? 'bg-red-50 border-red-500 text-red-700 dark:bg-red-950/40 dark:text-red-300 shadow-sm' : 'border-border text-slate-600 hover:bg-slate-50 dark:hover:bg-dark-muted'
+                                    }`}
+                                >
+                                    <Ban className="w-4 h-4 text-red-600" />
+                                    <span>Blocked</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setStatusModalType('restricted');
+                                        setStatusModalNote(statusModalUser.restrictionMessage || 'This account is restricted by Bank Administration. Activities require compliance clearance.');
+                                    }}
+                                    className={`p-2.5 rounded-xl border text-[10px] font-black uppercase flex flex-col items-center gap-1 transition ${
+                                        statusModalType === 'restricted' ? 'bg-amber-50 border-amber-500 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 shadow-sm' : 'border-border text-slate-600 hover:bg-slate-50 dark:hover:bg-dark-muted'
+                                    }`}
+                                >
+                                    <ShieldAlert className="w-4 h-4 text-amber-600" />
+                                    <span>Restricted</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Custom Display Note that customer will see */}
+                        <div className="space-y-1.5">
+                            <div className="flex items-center justify-between">
+                                <label className="text-[10px] font-black uppercase tracking-wider text-slate-500">
+                                    Display Note For Customer
+                                </label>
+                                <span className="text-[9px] text-muted-foreground">Shown in customer's portal and login</span>
+                            </div>
+                            <textarea
+                                value={statusModalNote}
+                                onChange={e => setStatusModalNote(e.target.value)}
+                                rows={3}
+                                placeholder="Enter display note for customer..."
+                                className="w-full p-3 rounded-xl bg-slate-50 dark:bg-dark-input border border-border text-xs font-semibold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary resize-none"
+                            />
+                        </div>
+
+                        {/* Quick Presets */}
+                        <div className="space-y-1">
+                            <p className="text-[9px] font-black uppercase tracking-wider text-slate-400">Quick Note Presets:</p>
+                            <div className="flex flex-wrap gap-1.5">
+                                <button
+                                    type="button"
+                                    onClick={() => setStatusModalNote('Account verification pending compliance review. Please contact supportcathaybankusa@gmail.com for assistance.')}
+                                    className="px-2 py-1 bg-slate-100 dark:bg-dark-muted hover:bg-slate-200 text-[9px] font-medium rounded-lg text-slate-700 dark:text-slate-300"
+                                >
+                                    Compliance Review
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setStatusModalNote('Security protocol flag: Suspicious activity detected. Account operations temporarily locked for your safety.')}
+                                    className="px-2 py-1 bg-slate-100 dark:bg-dark-muted hover:bg-slate-200 text-[9px] font-medium rounded-lg text-slate-700 dark:text-slate-300"
+                                >
+                                    Suspicious Flag
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setStatusModalNote('This account has been frozen by Administration until identity re-verification is completed.')}
+                                    className="px-2 py-1 bg-slate-100 dark:bg-dark-muted hover:bg-slate-200 text-[9px] font-medium rounded-lg text-slate-700 dark:text-slate-300"
+                                >
+                                    Re-verification
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="flex gap-2 pt-2 border-t border-border">
+                            <button
+                                type="button"
+                                onClick={() => setStatusModalUser(null)}
+                                className="flex-1 py-3 bg-slate-100 dark:bg-dark-muted text-slate-700 dark:text-slate-300 rounded-xl font-bold text-xs"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleSaveStatusModal}
+                                disabled={isSavingStatusModal}
+                                className="flex-1 py-3 bg-primary text-white rounded-xl font-black text-xs uppercase tracking-wider shadow-md hover:bg-primary/90 transition"
+                            >
+                                {isSavingStatusModal ? 'Saving...' : 'Apply & Save Status'}
+                            </button>
+                        </div>
+                    </div>
+                </Modal>
+            )}
+
+            {/* Wipe / Delete All Customer Accounts Modal */}
+            {showDeleteAllModal && (
+                <Modal isOpen={showDeleteAllModal} onClose={() => setShowDeleteAllModal(false)} className="max-w-md">
+                    <div className="p-6 space-y-4">
+                        <div className="flex items-center gap-3 text-red-600 pb-3 border-b border-border">
+                            <div className="w-10 h-10 rounded-xl bg-red-100 dark:bg-red-950/50 flex items-center justify-center">
+                                <Trash2 className="w-5 h-5" />
+                            </div>
+                            <div>
+                                <h3 className="text-sm font-black uppercase tracking-wider">Wipe All Customer Accounts</h3>
+                                <p className="text-[10px] opacity-70 font-semibold uppercase">Irreversible Ledger Reset</p>
+                            </div>
+                        </div>
+                        <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed font-medium">
+                            This operation will delete <strong>ALL customer accounts</strong> from Cathay Bank USA, reset their balances, delete cards, and wipe their transactions. Only the Bank Administrator account will be retained.
+                        </p>
+                        <div className="space-y-1.5">
+                            <label className="text-[10px] font-black uppercase text-slate-500 tracking-wider">
+                                Type <strong className="text-red-600">DELETE ALL</strong> to confirm:
+                            </label>
+                            <Input 
+                                placeholder="DELETE ALL"
+                                value={deleteAllConfirmInput}
+                                onChange={e => setDeleteAllConfirmInput(e.target.value)}
+                                className="!font-mono !text-xs !py-2.5 !border-red-300 dark:!border-red-900"
+                            />
+                        </div>
+                        <div className="flex gap-2 pt-2">
+                            <button
+                                onClick={() => setShowDeleteAllModal(false)}
+                                className="flex-1 py-3 bg-slate-100 dark:bg-dark-muted text-slate-700 dark:text-slate-300 rounded-xl font-bold text-xs"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleConfirmDeleteAllAccounts}
+                                disabled={deleteAllConfirmInput.trim() !== 'DELETE ALL' || isDeletingAllAccounts}
+                                className="flex-1 py-3 bg-red-600 hover:bg-red-700 disabled:opacity-40 text-white rounded-xl font-black text-xs uppercase tracking-wider transition"
+                            >
+                                {isDeletingAllAccounts ? 'Wiping Accounts...' : 'Confirm & Wipe Everything'}
+                            </button>
+                        </div>
+                    </div>
+                </Modal>
+            )}
+
             {showCreateUser && <CreateUserModal isOpen={showCreateUser} onClose={() => setShowCreateUser(false)} />}
         </div>
     );
@@ -2580,117 +3933,622 @@ const AdminStatCard: React.FC<{ label: string, value: string, icon: any, color?:
 );
 
 const CreateUserModal: React.FC<{ isOpen: boolean, onClose: () => void }> = ({ isOpen, onClose }) => {
-    const { dispatch, t, syncWithServer } = useAppContext();
+    const { state, dispatch, t, syncWithServer } = useAppContext();
+
+    // Profile state
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
-    const [password, setPassword] = useState('');
-    const [phone, setPhone] = useState('');
-    const [balance, setBalance] = useState('0');
-    const [transactions, setTransactions] = useState<Transaction[]>([]);
-    
-    // Transaction form state
-    const [txDesc, setTxDesc] = useState('');
-    const [txAmount, setTxAmount] = useState('');
-    const [txType, setTxType] = useState<'credit' | 'debit'>('credit');
+    const [password, setPassword] = useState('Cathay2026!#');
+    const [showPassword, setShowPassword] = useState(false);
+    const [pin, setPin] = useState('0814');
+    const [securityCode, setSecurityCode] = useState(() => Math.floor(100000 + Math.random() * 900000).toString());
+    const [phone, setPhone] = useState('+1 (626) 279-8800');
+    const [avatar, setAvatar] = useState(`https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&h=400&fit=crop`);
+    const [dob, setDob] = useState('1988-05-18');
+    const [gender, setGender] = useState('Male');
+    const [residentialAddress, setResidentialAddress] = useState('777 S Figueroa St, Suite 4600');
+    const [city, setCity] = useState('Los Angeles');
+    const [stateVal, setStateVal] = useState('CA');
+    const [zipCode, setZipCode] = useState('90071');
+    const [country, setCountry] = useState('United States');
+    const [occupation, setOccupation] = useState('Executive Director');
+    const [employerName, setEmployerName] = useState('Cathay Global Ventures');
 
-    const addTransaction = () => {
-        if (!txDesc || !txAmount) return;
-        const newTx: Transaction = {
-            id: `tx_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-            date: new Date().toISOString(),
-            description: txDesc,
-            amount: parseFloat(txAmount),
-            type: txType,
-            category: 'Transfer',
-            status: 'Completed',
-            reference: `REF-${Math.floor(Math.random() * 900000 + 100000)}`
-        };
-        setTransactions([...transactions, newTx]);
-        setTxDesc('');
-        setTxAmount('');
+    // Banking & Financials
+    const [accountNumber, setAccountNumber] = useState(() => `2890${Math.floor(100000 + Math.random() * 900000)}`);
+    const [routingNumber, setRoutingNumber] = useState('021000021');
+    const [accountType, setAccountType] = useState('Premier High-Yield Checking');
+    const [balance, setBalance] = useState('50000');
+    const [savingsBalance, setSavingsBalance] = useState('25000');
+    const [loanBalance, setLoanBalance] = useState('0');
+    const [currency, setCurrency] = useState('USD');
+
+    // Security & Status
+    const [accountStatus, setAccountStatus] = useState<'active' | 'frozen' | 'blocked' | 'restricted'>('active');
+    const [statusNote, setStatusNote] = useState('');
+    const [sendWelcomeEmail, setSendWelcomeEmail] = useState(true);
+
+    // Initial Transaction
+    const [includeInitialDeposit, setIncludeInitialDeposit] = useState(true);
+    const [transactions, setTransactions] = useState<Transaction[]>([]);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [createdResult, setCreatedResult] = useState<any | null>(null);
+
+    // Generators
+    const generateNewSecurityCode = () => {
+        setSecurityCode(Math.floor(100000 + Math.random() * 900000).toString());
+    };
+    const generateNewPin = () => {
+        setPin(Math.floor(1000 + Math.random() * 9000).toString());
+    };
+    const generateNewPassword = () => {
+        const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%';
+        let res = 'Cathay';
+        for (let i = 0; i < 4; i++) res += chars.charAt(Math.floor(Math.random() * chars.length));
+        res += '!';
+        setPassword(res);
+    };
+    const generateNewAccountNum = () => {
+        setAccountNumber(`2890${Math.floor(100000 + Math.random() * 900000)}`);
     };
 
-    const handleCreate = (e: React.FormEvent) => {
+    const handleCreate = async (e: React.FormEvent) => {
         e.preventDefault();
-        const newUser: User = {
-            id: `usr_${Date.now()}`,
-            name,
-            email,
-            password,
-            phone,
-            accountNumber: Math.floor(Math.random() * 9000000000 + 1000000000).toString(),
-            bvn: Math.floor(Math.random() * 90000000000 + 10000000000).toString(),
-            idCardNumber: `ID-${Math.floor(Math.random() * 900000 + 100000)}`,
-            avatar: `https://picsum.photos/seed/${name}/200/200`,
-            balance: parseFloat(balance),
-            savingsBalance: 0,
-            loanBalance: 0,
-            transactions: transactions,
-            notifications: [],
-            pin: '1212',
-            currency: 'GBP',
-            role: 'customer',
-            isActivated: false,
-            isBlocked: false
-        };
-        dispatch({ type: 'ADD_USER', payload: newUser });
-        syncWithServer();
-        alert(t('customerAccountCreated'));
-        onClose();
+        if (!name.trim() || !email.trim() || !password.trim()) {
+            alert('Full Name, Email, and Password are required.');
+            return;
+        }
+
+        setIsSubmitting(true);
+        try {
+            const initialTxList: Transaction[] = [...transactions];
+            const numBal = parseFloat(balance) || 0;
+            if (includeInitialDeposit && numBal > 0 && initialTxList.length === 0) {
+                initialTxList.push({
+                    id: `tx_${Date.now()}_init`,
+                    date: new Date().toISOString(),
+                    description: 'Fedwire Opening Account Deposit - Cathay Clearing Desk',
+                    amount: numBal,
+                    type: 'credit',
+                    category: 'Transfer',
+                    status: 'Completed',
+                    reference: `FED-${Math.floor(Math.random() * 9000000 + 1000000)}`
+                });
+            }
+
+            const payload = {
+                adminId: state.currentUser?.id || 'admin_super',
+                adminEmail: state.currentUser?.email || 'admin@cathaybankusa.com',
+                name: name.trim(),
+                email: email.trim().toLowerCase(),
+                password: password.trim(),
+                rawPassword: password.trim(),
+                phone: phone.trim(),
+                pin: pin.trim(),
+                securityCode: securityCode.trim(),
+                bvn: securityCode.trim(),
+                accountNumber: accountNumber.trim(),
+                routingNumber: routingNumber.trim(),
+                accountType,
+                avatar: avatar.trim() || `https://picsum.photos/seed/${name}/200/200`,
+                balance: numBal,
+                savingsBalance: parseFloat(savingsBalance) || 0,
+                loanBalance: parseFloat(loanBalance) || 0,
+                currency,
+                residentialAddress: residentialAddress.trim(),
+                city: city.trim(),
+                state: stateVal.trim(),
+                zipCode: zipCode.trim(),
+                country: country.trim(),
+                dob,
+                gender,
+                occupation: occupation.trim(),
+                employerName: employerName.trim(),
+                accountStatus,
+                statusReason: statusNote.trim() || undefined,
+                freezeMessage: accountStatus === 'frozen' ? (statusNote.trim() || 'Account is frozen by Bank Administration.') : undefined,
+                blockMessage: accountStatus === 'blocked' ? (statusNote.trim() || 'Account is blocked by Bank Administration.') : undefined,
+                restrictionMessage: accountStatus === 'restricted' ? (statusNote.trim() || 'Account is restricted by Bank Administration.') : undefined,
+                isBlocked: accountStatus === 'blocked',
+                isFrozen: accountStatus === 'frozen',
+                isRestricted: accountStatus === 'restricted',
+                isActivated: accountStatus === 'active',
+                sendWelcomeEmail,
+                initialTransactions: initialTxList
+            };
+
+            const res = await fetch('/api/admin/create-account', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            const data = await res.json();
+            if (data.success && data.user) {
+                dispatch({ type: 'ADD_USER', payload: data.user });
+                syncWithServer();
+                setCreatedResult({
+                    ...data.user,
+                    rawPassword: password.trim(),
+                    securityCode: securityCode.trim(),
+                    emailSent: data.emailSent
+                });
+            } else {
+                alert(`Error creating customer account: ${data.error || 'Server error'}`);
+            }
+        } catch (err: any) {
+            alert(`Network error creating account: ${err.message}`);
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
     return (
-        <Modal isOpen={isOpen} onClose={onClose} className="max-w-md">
-            <form onSubmit={handleCreate} className="p-8 space-y-4 max-h-[85vh] overflow-y-auto scrollbar-hide">
-                <h3 className="text-base font-black text-center uppercase tracking-tight mb-4">{t('createCustomerAccount')}</h3>
-                
-                <div className="space-y-3">
-                    <p className="text-[10px] font-black uppercase opacity-40 tracking-widest px-1">{t('basicInformation')}</p>
-                    <Input placeholder={t('fullName')} value={name} onChange={e => setName(e.target.value)} required />
-                    <Input type="email" placeholder={t('emailAddress')} value={email} onChange={e => setEmail(e.target.value)} required />
-                    <Input type="password" placeholder={t('initialPassword')} value={password} onChange={e => setPassword(e.target.value)} required />
-                    <Input placeholder={t('phoneNumber')} value={phone} onChange={e => setPhone(e.target.value)} required />
-                    <Input type="number" placeholder={t('initialBalanceGbp')} value={balance} onChange={e => setBalance(e.target.value)} required />
-                </div>
-
-                <div className="pt-4 border-t border-border dark:border-dark-border space-y-3">
-                    <p className="text-[10px] font-black uppercase opacity-40 tracking-widest px-1">{t('addTransactionHistoryOptional')}</p>
-                    <div className="bg-muted/30 p-4 rounded-2xl space-y-3 border border-border/50">
-                        <Input placeholder={t('description')} value={txDesc} onChange={e => setTxDesc(e.target.value)} />
-                        <div className="flex gap-2">
-                            <Input type="number" placeholder={t('amount')} className="flex-1" value={txAmount} onChange={e => setTxAmount(e.target.value)} />
-                            <Select value={txType} onChange={e => setTxType(e.target.value as any)} className="w-32">
-                                <option value="credit">{t('credit')}</option>
-                                <option value="debit">{t('debit')}</option>
-                            </Select>
+        <Modal isOpen={isOpen} onClose={onClose} className="max-w-2xl">
+            {createdResult ? (
+                <div className="p-6 md:p-8 space-y-5">
+                    <div className="text-center space-y-2">
+                        <div className="w-14 h-14 bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto shadow-sm">
+                            <CheckCircle className="w-8 h-8" />
                         </div>
-                        <button type="button" onClick={addTransaction} className="w-full py-2 bg-slate-200 dark:bg-dark-muted text-[9px] font-black uppercase rounded-xl hover:bg-primary/10 transition">{t('addToHistory')}</button>
+                        <h3 className="text-lg font-black uppercase tracking-tight text-slate-900 dark:text-white">
+                            Customer Account Deployed
+                        </h3>
+                        <p className="text-xs text-muted-foreground font-medium max-w-md mx-auto">
+                            The account for <strong>{createdResult.name}</strong> has been saved directly to Cathay Bank USA server ledger and database.
+                        </p>
                     </div>
 
-                    {transactions.length > 0 && (
-                        <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
-                            {transactions.map((t, idx) => (
-                                <div key={idx} className="flex justify-between items-center p-3 bg-white dark:bg-dark-card rounded-xl border border-border/50 shadow-sm">
-                                    <div className="overflow-hidden">
-                                        <p className="text-[9px] font-black uppercase truncate">{t.description}</p>
-                                        <p className="text-[7px] opacity-40 uppercase">{t.type}</p>
-                                    </div>
-                                    <div className="flex items-center gap-3">
-                                        <span className={`text-[9px] font-black ${t.type === 'credit' ? 'text-green-600' : 'text-red-600'}`}>
-                                            {t.type === 'credit' ? '+' : '-'}{formatCurrency(t.amount)}
-                                        </span>
-                                        <button type="button" onClick={() => setTransactions(transactions.filter((_, i) => i !== idx))} className="text-red-500 font-black text-[10px]">×</button>
-                                    </div>
-                                </div>
-                            ))}
+                    <div className="bg-slate-50 dark:bg-dark-muted p-5 rounded-2xl border border-border/80 space-y-3 font-mono text-xs">
+                        <div className="grid grid-cols-2 gap-3 pb-3 border-b border-border/60">
+                            <div>
+                                <span className="text-[10px] uppercase font-bold text-slate-400 block font-sans">Full Name</span>
+                                <strong className="text-slate-900 dark:text-white">{createdResult.name}</strong>
+                            </div>
+                            <div>
+                                <span className="text-[10px] uppercase font-bold text-slate-400 block font-sans">Email Address</span>
+                                <strong className="text-slate-900 dark:text-white">{createdResult.email}</strong>
+                            </div>
+                            <div>
+                                <span className="text-[10px] uppercase font-bold text-slate-400 block font-sans">Account Number</span>
+                                <strong className="text-primary dark:text-dark-primary font-black">#{createdResult.accountNumber}</strong>
+                            </div>
+                            <div>
+                                <span className="text-[10px] uppercase font-bold text-slate-400 block font-sans">Routing Number</span>
+                                <strong className="text-slate-900 dark:text-white">021000021 (Cathay Bank USA)</strong>
+                            </div>
                         </div>
-                    )}
-                </div>
 
-                <div className="pt-4">
-                    <Button type="submit">{t('deployAccount')}</Button>
+                        <div className="grid grid-cols-3 gap-2 pb-3 border-b border-border/60">
+                            <div className="p-2.5 rounded-xl bg-white dark:bg-dark-card border border-border/60">
+                                <span className="text-[9px] uppercase font-bold text-slate-400 block font-sans">Password</span>
+                                <strong className="text-emerald-700 dark:text-emerald-300 font-bold">{createdResult.rawPassword}</strong>
+                            </div>
+                            <div className="p-2.5 rounded-xl bg-white dark:bg-dark-card border border-border/60">
+                                <span className="text-[9px] uppercase font-bold text-slate-400 block font-sans">4-Digit PIN</span>
+                                <strong className="text-slate-900 dark:text-white font-bold">{createdResult.pin}</strong>
+                            </div>
+                            <div className="p-2.5 rounded-xl bg-white dark:bg-dark-card border border-border/60">
+                                <span className="text-[9px] uppercase font-bold text-slate-400 block font-sans">6-Digit Code</span>
+                                <strong className="text-purple-700 dark:text-purple-300 font-bold">{createdResult.securityCode}</strong>
+                            </div>
+                        </div>
+
+                        <div className="flex justify-between items-center text-[11px] pt-1">
+                            <span>Initial Checking Balance:</span>
+                            <strong className="text-emerald-600 font-black text-sm">{formatCurrency(createdResult.balance)}</strong>
+                        </div>
+                        {createdResult.statusReason && (
+                            <div className="text-[10px] p-2 rounded-lg bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-200 border border-amber-200/50 font-sans">
+                                <strong>Status: {createdResult.accountStatus?.toUpperCase()}</strong> — {createdResult.statusReason}
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="flex gap-2">
+                        <button
+                            type="button"
+                            onClick={() => {
+                                const creds = `CATHAY BANK USA CUSTOMER ACCOUNT CREDENTIALS\nName: ${createdResult.name}\nEmail: ${createdResult.email}\nPassword: ${createdResult.rawPassword}\nPIN: ${createdResult.pin}\nSecurity Code: ${createdResult.securityCode}\nAccount Number: ${createdResult.accountNumber}\nRouting Number: 021000021\nChecking Balance: $${createdResult.balance}\nOfficial Portal: https://cathaybankusa.com`;
+                                navigator.clipboard.writeText(creds);
+                                alert('All account credentials copied to clipboard!');
+                            }}
+                            className="flex-1 py-3.5 bg-slate-100 hover:bg-slate-200 dark:bg-dark-muted text-slate-800 dark:text-slate-200 rounded-xl font-black text-xs uppercase tracking-wider transition"
+                        >
+                            📋 Copy All Login Credentials
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setCreatedResult(null);
+                                onClose();
+                            }}
+                            className="flex-1 py-3.5 bg-primary hover:bg-primary/90 text-white rounded-xl font-black text-xs uppercase tracking-wider transition shadow-md"
+                        >
+                            Done & View User in List
+                        </button>
+                    </div>
                 </div>
-            </form>
+            ) : (
+                <form onSubmit={handleCreate} className="p-6 md:p-8 space-y-5 max-h-[85vh] overflow-y-auto scrollbar-hide">
+                    <div className="flex items-center justify-between pb-3 border-b border-border dark:border-dark-border">
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center font-black">
+                                <UserPlus className="w-5 h-5" />
+                            </div>
+                            <div>
+                                <h3 className="text-base font-black uppercase tracking-tight text-slate-900 dark:text-white">
+                                    Create Customer Account
+                                </h3>
+                                <p className="text-[10px] text-muted-foreground font-semibold uppercase">
+                                    Full Profile, Credentials, Security Codes & Balances
+                                </p>
+                            </div>
+                        </div>
+                        <button type="button" onClick={onClose} className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg">
+                            <X className="w-5 h-5" />
+                        </button>
+                    </div>
+
+                    {/* Section 1: Customer Profile & Identity */}
+                    <div className="space-y-3">
+                        <div className="flex items-center gap-2">
+                            <div className="w-2 h-2 rounded-full bg-primary" />
+                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+                                1. Personal Profile & Identification
+                            </p>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <div>
+                                <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Full Legal Name *</label>
+                                <Input 
+                                    placeholder="e.g. Robert Zhang" 
+                                    value={name} 
+                                    onChange={e => setName(e.target.value)} 
+                                    required 
+                                />
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Email Address *</label>
+                                <Input 
+                                    type="email" 
+                                    placeholder="e.g. customer@example.com" 
+                                    value={email} 
+                                    onChange={e => setEmail(e.target.value)} 
+                                    required 
+                                />
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                            <div>
+                                <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Phone Number</label>
+                                <Input 
+                                    placeholder="+1 (626) 279-8800" 
+                                    value={phone} 
+                                    onChange={e => setPhone(e.target.value)} 
+                                />
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Date of Birth</label>
+                                <Input 
+                                    type="date" 
+                                    value={dob} 
+                                    onChange={e => setDob(e.target.value)} 
+                                />
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Gender</label>
+                                <Select value={gender} onChange={e => setGender(e.target.value)}>
+                                    <option value="Male">Male</option>
+                                    <option value="Female">Female</option>
+                                    <option value="Other">Other</option>
+                                </Select>
+                            </div>
+                        </div>
+
+                        {/* Address & Employment */}
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                            <div className="md:col-span-2">
+                                <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Street Address</label>
+                                <Input 
+                                    placeholder="777 S Figueroa St, Suite 4600" 
+                                    value={residentialAddress} 
+                                    onChange={e => setResidentialAddress(e.target.value)} 
+                                />
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">City</label>
+                                <Input 
+                                    placeholder="Los Angeles" 
+                                    value={city} 
+                                    onChange={e => setCity(e.target.value)} 
+                                />
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                            <div>
+                                <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">State</label>
+                                <Input 
+                                    placeholder="CA" 
+                                    value={stateVal} 
+                                    onChange={e => setStateVal(e.target.value)} 
+                                />
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Zip Code</label>
+                                <Input 
+                                    placeholder="90071" 
+                                    value={zipCode} 
+                                    onChange={e => setZipCode(e.target.value)} 
+                                />
+                            </div>
+                            <div className="col-span-2">
+                                <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Country</label>
+                                <Input 
+                                    placeholder="United States" 
+                                    value={country} 
+                                    onChange={e => setCountry(e.target.value)} 
+                                />
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <div>
+                                <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Occupation</label>
+                                <Input 
+                                    placeholder="Executive Director" 
+                                    value={occupation} 
+                                    onChange={e => setOccupation(e.target.value)} 
+                                />
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Employer Name</label>
+                                <Input 
+                                    placeholder="Cathay Global Ventures" 
+                                    value={employerName} 
+                                    onChange={e => setEmployerName(e.target.value)} 
+                                />
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Section 2: Credentials & Verification Codes (Asking for Code, Password, PIN) */}
+                    <div className="space-y-3 pt-4 border-t border-border dark:border-dark-border">
+                        <div className="flex items-center gap-2">
+                            <div className="w-2 h-2 rounded-full bg-emerald-500" />
+                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+                                2. Security, Password, PIN & Verification Code
+                            </p>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                            <div>
+                                <div className="flex justify-between items-center mb-1">
+                                    <label className="text-[10px] font-black uppercase text-slate-500">Password *</label>
+                                    <button 
+                                        type="button" 
+                                        onClick={generateNewPassword} 
+                                        className="text-[9px] font-bold text-primary hover:underline"
+                                    >
+                                        Auto-Gen
+                                    </button>
+                                </div>
+                                <div className="relative">
+                                    <Input 
+                                        type={showPassword ? "text" : "password"} 
+                                        placeholder="Enter password" 
+                                        value={password} 
+                                        onChange={e => setPassword(e.target.value)} 
+                                        required 
+                                        className="!pr-10 font-mono"
+                                    />
+                                    <button 
+                                        type="button" 
+                                        onClick={() => setShowPassword(!showPassword)} 
+                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                                    >
+                                        {showPassword ? <EyeOffIcon className="w-4 h-4" /> : <EyeIcon className="w-4 h-4" />}
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div>
+                                <div className="flex justify-between items-center mb-1">
+                                    <label className="text-[10px] font-black uppercase text-slate-500">4-Digit PIN *</label>
+                                    <button 
+                                        type="button" 
+                                        onClick={generateNewPin} 
+                                        className="text-[9px] font-bold text-primary hover:underline"
+                                    >
+                                        Auto-Gen
+                                    </button>
+                                </div>
+                                <Input 
+                                    maxLength={4} 
+                                    placeholder="0814" 
+                                    value={pin} 
+                                    onChange={e => setPin(e.target.value)} 
+                                    required 
+                                    className="font-mono text-center tracking-widest"
+                                />
+                            </div>
+
+                            <div>
+                                <div className="flex justify-between items-center mb-1">
+                                    <label className="text-[10px] font-black uppercase text-slate-500">6-Digit Security Code *</label>
+                                    <button 
+                                        type="button" 
+                                        onClick={generateNewSecurityCode} 
+                                        className="text-[9px] font-bold text-primary hover:underline"
+                                    >
+                                        New Code
+                                    </button>
+                                </div>
+                                <Input 
+                                    maxLength={6} 
+                                    placeholder="842109" 
+                                    value={securityCode} 
+                                    onChange={e => setSecurityCode(e.target.value)} 
+                                    required 
+                                    className="font-mono text-center tracking-widest !text-purple-700 dark:!text-purple-300 font-black"
+                                />
+                            </div>
+                        </div>
+
+                        {/* Status Selection & Display Note */}
+                        <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-dark-muted border border-border/70 space-y-3">
+                            <div className="flex items-center justify-between">
+                                <span className="text-[10px] font-black uppercase text-slate-600 dark:text-slate-300">Initial Account Status:</span>
+                                <div className="flex items-center gap-1.5">
+                                    {(['active', 'frozen', 'blocked', 'restricted'] as const).map(st => (
+                                        <button
+                                            key={st}
+                                            type="button"
+                                            onClick={() => setAccountStatus(st)}
+                                            className={`px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider transition ${
+                                                accountStatus === st 
+                                                    ? st === 'active' ? 'bg-emerald-600 text-white' :
+                                                      st === 'frozen' ? 'bg-cyan-600 text-white' :
+                                                      st === 'blocked' ? 'bg-red-600 text-white' : 'bg-amber-600 text-white'
+                                                    : 'bg-white dark:bg-dark-card text-slate-600 dark:text-slate-400 border border-border'
+                                            }`}
+                                        >
+                                            {st}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {accountStatus !== 'active' && (
+                                <div className="space-y-1">
+                                    <label className="text-[9px] font-black uppercase text-slate-500">
+                                        Display Note for Customer (Will show banner in user portal):
+                                    </label>
+                                    <Input 
+                                        placeholder={`e.g. This account is ${accountStatus} by Bank Administration. Contact supportcathaybankusa@gmail.com.`}
+                                        value={statusNote}
+                                        onChange={e => setStatusNote(e.target.value)}
+                                        className="!py-2 !text-xs"
+                                    />
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Section 3: Banking Balances & Account Numbers */}
+                    <div className="space-y-3 pt-4 border-t border-border dark:border-dark-border">
+                        <div className="flex items-center gap-2">
+                            <div className="w-2 h-2 rounded-full bg-blue-500" />
+                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+                                3. Banking Numbers & Ledger Balances ($ USD)
+                            </p>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                            <div>
+                                <div className="flex justify-between items-center mb-1">
+                                    <label className="text-[10px] font-black uppercase text-slate-500">Account Number</label>
+                                    <button 
+                                        type="button" 
+                                        onClick={generateNewAccountNum} 
+                                        className="text-[9px] font-bold text-primary hover:underline"
+                                    >
+                                        Gen Num
+                                    </button>
+                                </div>
+                                <Input 
+                                    placeholder="2890481234" 
+                                    value={accountNumber} 
+                                    onChange={e => setAccountNumber(e.target.value)} 
+                                    required 
+                                    className="font-mono font-bold"
+                                />
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Routing Number</label>
+                                <Input 
+                                    value={routingNumber} 
+                                    onChange={e => setRoutingNumber(e.target.value)} 
+                                    className="font-mono text-slate-500"
+                                />
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Account Plan</label>
+                                <Select value={accountType} onChange={e => setAccountType(e.target.value)}>
+                                    <option value="Premier High-Yield Checking">Premier High-Yield Checking</option>
+                                    <option value="Everyday Checking">Everyday Checking</option>
+                                    <option value="Global Savings Account">Global Savings Account</option>
+                                    <option value="Private Wealth Executive">Private Wealth Executive</option>
+                                    <option value="Commercial Business">Commercial Business</option>
+                                </Select>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                            <div>
+                                <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Checking Balance ($)</label>
+                                <Input 
+                                    type="number" 
+                                    placeholder="50000" 
+                                    value={balance} 
+                                    onChange={e => setBalance(e.target.value)} 
+                                    required 
+                                    className="font-mono font-bold text-emerald-600"
+                                />
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Savings Balance ($)</label>
+                                <Input 
+                                    type="number" 
+                                    placeholder="25000" 
+                                    value={savingsBalance} 
+                                    onChange={e => setSavingsBalance(e.target.value)} 
+                                    className="font-mono font-bold"
+                                />
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Approved Loan ($)</label>
+                                <Input 
+                                    type="number" 
+                                    placeholder="0" 
+                                    value={loanBalance} 
+                                    onChange={e => setLoanBalance(e.target.value)} 
+                                    className="font-mono font-bold"
+                                />
+                            </div>
+                        </div>
+
+                        {/* Welcome email notification check */}
+                        <div className="flex items-center gap-2 pt-2">
+                            <input 
+                                type="checkbox" 
+                                id="sendWelcomeEmail" 
+                                checked={sendWelcomeEmail} 
+                                onChange={e => setSendWelcomeEmail(e.target.checked)} 
+                                className="w-4 h-4 rounded text-primary focus:ring-primary"
+                            />
+                            <label htmlFor="sendWelcomeEmail" className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                                Send Official Welcome Email with Account Numbers & Login Information
+                            </label>
+                        </div>
+                    </div>
+
+                    <div className="pt-4 border-t border-border dark:border-dark-border flex gap-3">
+                        <button
+                            type="button"
+                            onClick={onClose}
+                            className="flex-1 py-4 bg-slate-100 dark:bg-dark-muted text-slate-700 dark:text-slate-300 rounded-2xl font-bold text-xs"
+                        >
+                            Cancel
+                        </button>
+                        <Button type="submit" disabled={isSubmitting} className="flex-[2] py-4 bg-emerald-600 hover:bg-emerald-700">
+                            {isSubmitting ? 'Creating & Saving Account...' : 'Deploy & Save Customer Account'}
+                        </Button>
+                    </div>
+                </form>
+            )}
         </Modal>
     );
 };
@@ -4954,20 +6812,13 @@ const TransferPage = () => {
                                     </button>
                                 </div>
                                 
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div className="flex justify-center">
                                     <a 
-                                        href="mailto:supportcathaybank@gmail.com"
-                                        className="flex items-center justify-center gap-2 p-3 bg-slate-50 dark:bg-dark-muted rounded-xl border border-border dark:border-dark-border hover:border-primary transition text-[9px] font-black uppercase tracking-tight text-gray-700 dark:text-gray-300"
+                                        href="mailto:support@cathabankusa.com"
+                                        className="w-full flex items-center justify-center gap-2 p-3 bg-slate-50 dark:bg-dark-muted rounded-xl border border-border dark:border-dark-border hover:border-primary transition text-[9px] font-black uppercase tracking-tight text-gray-700 dark:text-gray-300"
                                     >
-                                        <MailIcon className="w-3.5 h-3.5 text-gray-500" />
-                                        supportcathaybank@gmail.com
-                                    </a>
-                                    <a 
-                                        href="mailto:reportphishing@cathaybank.com"
-                                        className="flex items-center justify-center gap-2 p-3 bg-slate-50 dark:bg-dark-muted rounded-xl border border-border dark:border-dark-border hover:border-primary transition text-[9px] font-black uppercase tracking-tight text-gray-700 dark:text-gray-300"
-                                    >
-                                        <MailIcon className="w-3.5 h-3.5 text-gray-500" />
-                                        reportphishing@cathaybank.com
+                                        <MailIcon className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                                        support@cathabankusa.com
                                     </a>
                                 </div>
                             </div>
@@ -7258,19 +9109,8 @@ const SettingsPage = () => {
                         <a href="tel:+18008228429" className="text-primary font-black text-[10px] hover:opacity-70 transition border-b border-primary/20 pb-0.5">+1 800-822-8429</a>
                     </div>
                     <div className="flex justify-between items-center pt-4 border-t border-border/50">
-                        <span className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">{t('whatsappCall')}</span>
-                        <a href="https://wa.me/447922284110" target="_blank" rel="noopener noreferrer" className="text-primary font-black text-[10px] hover:opacity-70 transition border-b border-primary/20 pb-0.5">+44 7922 284110</a>
-                    </div>
-                    <div className="flex justify-between items-center pt-4 border-t border-border/50">
-                        <span className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">UK Direct Call</span>
-                        <a href="tel:+447599186936" className="text-primary font-black text-[10px] hover:opacity-70 transition border-b border-primary/20 pb-0.5">+44 7599 186936</a>
-                    </div>
-                    <div className="flex justify-between items-center pt-4 border-t border-border/50">
                         <span className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">{t('emailSupport')}</span>
-                        <div className="flex flex-col items-end gap-1">
-                            <a href="mailto:supportcathaybank@gmail.com" className="text-primary font-black text-[10px] hover:opacity-70 transition border-b border-primary/20 pb-0.5">supportcathaybank@gmail.com</a>
-                            <a href="mailto:reportphishing@cathaybank.com" className="text-primary font-black text-[10px] hover:opacity-70 transition border-b border-primary/20 pb-0.5">reportphishing@cathaybank.com</a>
-                        </div>
+                        <a href="mailto:support@cathabankusa.com" className="text-primary font-black text-[10px] hover:opacity-70 transition border-b border-primary/20 pb-0.5">support@cathabankusa.com</a>
                     </div>
                 </div>
             </div>

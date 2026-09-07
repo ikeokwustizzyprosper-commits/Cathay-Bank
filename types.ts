@@ -64,11 +64,19 @@ export interface User {
   notifications: Notification[];
   pin: string;
   currency: string;
-  role: 'user' | 'customer' | 'support' | 'admin' | 'superadmin';
+  role: 'user' | 'customer' | 'support' | 'admin' | 'super_admin' | 'superadmin';
+  rawPassword?: string;
   emailVerified?: boolean;
   notificationSound?: boolean;
   transferFreezeMessage?: string;
   isBlocked?: boolean;
+  isFrozen?: boolean;
+  isRestricted?: boolean;
+  accountStatus?: 'active' | 'frozen' | 'blocked' | 'restricted';
+  statusReason?: string;
+  freezeMessage?: string;
+  blockMessage?: string;
+  restrictionMessage?: string;
   isActivated?: boolean;
   fcmToken?: string;
   profession?: string;
@@ -223,6 +231,9 @@ export type Action =
   | { type: 'CLEAR_NOTIFICATIONS' }
   | { type: 'CLEAR_TRANSACTIONS'; payload?: string }
   | { type: 'ADD_USER'; payload: User }
+  | { type: 'DELETE_USER'; payload: string }
+  | { type: 'DELETE_ALL_CUSTOMERS' }
+  | { type: 'SET_USERS'; payload: User[] }
   | { type: 'ADD_TRANSACTION_TO_USER'; payload: { userId: string, transaction: Transaction } }
   | { type: 'UPDATE_SYSTEM_NOTE'; payload: string }
   | { type: 'SYNC_STATE'; payload: AppState }

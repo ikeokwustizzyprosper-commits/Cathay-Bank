@@ -98,7 +98,7 @@ const Card: React.FC<{ card: CardType }> = ({ card }) => {
                         <span className="text-black font-mono italic pr-4 font-black">••••</span>
                      </div>
                      <p className="text-[9px] text-gray-500 mt-auto px-6 pb-6 text-center leading-tight opacity-70 uppercase tracking-tighter">
-                         This Cathay Bank Premier card is non-transferable and remains the property of Cathay Bank USA. Misuse is a violation of member terms. Contact supportcathaybank@gmail.com.
+                         This Cathay Bank Premier card is non-transferable and remains the property of Cathay Bank USA. Misuse is a violation of member terms. Contact supportcathaybankusa@gmail.com.
                      </p>
                 </div>
             </div>

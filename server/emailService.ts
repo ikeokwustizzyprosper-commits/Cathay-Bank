@@ -43,15 +43,16 @@ export function getServerEmailConfigStatus() {
         maskedKey = sendgridKey.length > 8 ? `${sendgridKey.slice(0, 4)}••••••••${sendgridKey.slice(-4)}` : '••••••••';
     }
 
-    const envFrom = process.env.RESEND_FROM_EMAIL;
-    const fromEmail = (envFrom && envFrom.includes('@')) ? envFrom.trim() : "notifications@cathaybankusa.com";
+    const envFrom = process.env.EMAIL_FROM || process.env.RESEND_FROM_EMAIL;
+    const fromEmail = (envFrom && envFrom.includes('@')) ? envFrom.trim() : "notifications@cathabankusa.com";
 
     return {
         provider,
         isConfigured,
         maskedKey,
         fromEmail,
-        domain: process.env.CUSTOM_DOMAIN || "cathaybankusa.com",
+        replyToEmail: process.env.EMAIL_REPLY_TO || process.env.SUPPORT_EMAIL || "support@cathabankusa.com",
+        domain: process.env.CUSTOM_DOMAIN || "cathabankusa.com",
         serverTime: new Date().toISOString()
     };
 }
@@ -90,8 +91,9 @@ export async function sendTransactionalEmail(
 
     const resendKey = process.env.RESEND_API_KEY;
     const sendgridKey = process.env.SENDGRID_API_KEY;
-    const envFrom = process.env.RESEND_FROM_EMAIL;
-    const fromEmail = (envFrom && envFrom.includes('@')) ? envFrom.trim() : "notifications@cathaybankusa.com";
+    const envFrom = process.env.EMAIL_FROM || process.env.RESEND_FROM_EMAIL;
+    const fromEmail = (envFrom && envFrom.includes('@')) ? envFrom.trim() : "notifications@cathabankusa.com";
+    const replyToEmail = process.env.EMAIL_REPLY_TO || process.env.SUPPORT_EMAIL || "support@cathabankusa.com";
 
     let sendSuccess = false;
     let failureReason: string | undefined;
@@ -121,7 +123,7 @@ export async function sendTransactionalEmail(
                 }
             }).catch(supErr => console.warn("[EMAIL AUTO-UNSUPPRESS] Background check:", supErr));
 
-            const replyToAddress = process.env.SUPPORT_EMAIL || process.env.ADMIN_EMAIL || (fromEmail !== "onboarding@resend.dev" ? fromEmail : undefined);
+            const replyToAddress = process.env.EMAIL_REPLY_TO || process.env.SUPPORT_EMAIL || 'support@cathabankusa.com';
 
             const sendRequest = async (senderAddress: string) => {
                 const payload: any = {
@@ -348,7 +350,7 @@ export function buildAccountCreatedEmail(data: {
       </p>
 
       <p style="margin: 0; font-size: 13px; color: #64748b;">
-        If you have questions or need assistance, our customer support desk is available 24/7 at supportcathaybank@gmail.com.
+        If you have questions or need assistance, our customer support desk is available 24/7 at support@cathabankusa.com.
       </p>
     `;
 
@@ -551,7 +553,7 @@ export function buildTransferFailedEmail(data: {
 
       <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 14px; margin-bottom: 20px;">
         <p style="margin: 0; font-size: 13px; color: #334155;">
-          <strong>Next Steps:</strong> Please contact customer support at <strong>supportcathaybank@gmail.com</strong> for assistance in verifying the required details to lift any restrictions.
+          <strong>Next Steps:</strong> Please contact customer support at <strong>support@cathabankusa.com</strong> for assistance in verifying the required details to lift any restrictions.
         </p>
       </div>
 
@@ -594,7 +596,7 @@ export function buildPasswordResetEmail(data: {
       </div>
 
       <p style="margin: 0; font-size: 13px; color: #64748b;">
-        If you did not request this password reset, please contact our Fraud Support Center immediately at supportcathaybank@gmail.com.
+        If you did not request this password reset, please contact our Fraud Support Center immediately at support@cathabankusa.com.
       </p>
     `;
 
@@ -633,7 +635,7 @@ export function buildPasswordChangedSuccessEmail(data: {
         If you made this change, you can now log into your online banking account using your updated password.
       </p>
       <p style="margin: 0; font-size: 13px; color: #dc2626; font-weight: 600;">
-        ⚠️ If you did NOT make this change, your account may be compromised. Please contact Cathay Bank Security immediately at supportcathaybank@gmail.com.
+        ⚠️ If you did NOT make this change, your account may be compromised. Please contact Cathay Bank Security immediately at support@cathabankusa.com.
       </p>
     `;
 
@@ -720,7 +722,7 @@ export function buildTransferProcessingNotificationEmail(data: {
       </div>
 
       <p style="margin: 0; font-size: 13px; color: #64748b;">
-        You will receive a notification once the verification has concluded. If you require assistance, contact customer support at supportcathaybank@gmail.com.
+        You will receive a notification once the verification has concluded. If you require assistance, contact customer support at support@cathabankusa.com.
       </p>
     `;
 

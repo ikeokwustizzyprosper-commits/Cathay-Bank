@@ -220,18 +220,15 @@ const Chatbot: React.FC<{ isOpen: boolean; onClose: () => void; }> = ({ isOpen, 
                                                     />
                                                 )}
                                                 {msg.text && <p>{
-                                                    msg.text.split(/(supportcathaybank@gmail\.com|prisparimobank@gmail\.com|\+44\s?7599\s?186936|\+44\s?7922\s?286845|\+44\s?7922\s?284110)/g).map((part, i) => {
-                                                        if (part === 'supportcathaybank@gmail.com' || part === 'prisparimobank@gmail.com') {
-                                                            return <a key={i} href="mailto:supportcathaybank@gmail.com" className="text-blue-500 dark:text-blue-400 underline font-black">{part}</a>;
+                                                    msg.text.split(/(supportcathaybankusa@gmail\.com|supportcathaybank@gmail\.com|prisparimobank@gmail\.com|\+1\s?\(?800\)?\s?988-?8888|\+1\s?\(?212\)?\s?555-?0199|\+44\s?7599\s?186936|\+44\s?7922\s?286845|\+44\s?7922\s?284110)/g).map((part, i) => {
+                                                        if (part === 'supportcathaybankusa@gmail.com' || part === 'supportcathaybank@gmail.com' || part === 'prisparimobank@gmail.com') {
+                                                            return <a key={i} href="mailto:supportcathaybankusa@gmail.com" className="text-blue-500 dark:text-blue-400 underline font-black">supportcathaybankusa@gmail.com</a>;
                                                         }
-                                                        if (part.replace(/\s/g, '') === '+447599186936') {
-                                                            return <a key={i} href="tel:+447599186936" className="text-blue-500 dark:text-blue-400 underline font-black">{part}</a>;
+                                                        if (part.includes('800') || part.includes('988')) {
+                                                            return <a key={i} href="tel:+18009888888" className="text-blue-500 dark:text-blue-400 underline font-black">+1 (800) 988-8888</a>;
                                                         }
-                                                        if (part.replace(/\s/g, '') === '+447922286845') {
-                                                            return <a key={i} href="https://wa.me/447922284110" className="text-blue-500 dark:text-blue-400 underline font-black">{part}</a>;
-                                                        }
-                                                        if (part.replace(/\s/g, '') === '+447922284110') {
-                                                            return <a key={i} href="https://wa.me/447922284110" className="text-blue-500 dark:text-blue-400 underline font-black">{part}</a>;
+                                                        if (part.includes('212') || part.includes('555')) {
+                                                            return <a key={i} href="tel:+12125550199" className="text-blue-500 dark:text-blue-400 underline font-black">+1 (212) 555-0199</a>;
                                                         }
                                                         return <span key={i}>{part}</span>;
                                                     })

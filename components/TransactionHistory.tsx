@@ -202,7 +202,7 @@ const TransactionItem: React.FC<{ tx: Transaction, onClick: () => void }> = ({ t
                                     <span>Restriction Note:</span>
                                 </div>
                                 <p className="text-slate-800 dark:text-slate-200 leading-relaxed break-words">
-                                    {tx.failureReason || "This transaction will not be completed because of the late payment charges for the restrictions placed on the account added last week. Unverified third-party assisted transfer flagged. Please contact supportcathaybank@gmail.com"}
+                                    {tx.failureReason || "This transaction will not be completed because of the late payment charges for the restrictions placed on the account added last week. Unverified third-party assisted transfer flagged. Please contact supportcathaybankusa@gmail.com"}
                                 </p>
                             </div>
                         )}

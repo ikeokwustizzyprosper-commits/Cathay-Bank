@@ -1227,6 +1227,41 @@ function findUserInList(users: User[], rawIdentifier: string, rawPassword?: stri
                 }
             }
 
+            // Check backend unified authentication endpoint for secure role and credential verification
+            try {
+                const apiRes = await fetchWithTimeout('/api/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        identifier: loginIdentifier.trim(),
+                        email: loginIdentifier.trim(),
+                        password: password.trim()
+                    })
+                }, 3000);
+
+                if (apiRes.ok) {
+                    const authResult = await apiRes.json();
+                    if (authResult.success && authResult.user) {
+                        foundUser = authResult.user;
+                        const existingIdx = currentUsersList.findIndex(u => u.id === foundUser.id);
+                        if (existingIdx !== -1) {
+                            currentUsersList[existingIdx] = foundUser;
+                        } else {
+                            currentUsersList.unshift(foundUser);
+                        }
+                        dispatch({
+                            type: 'SYNC_STATE',
+                            payload: {
+                                ...state,
+                                users: currentUsersList
+                            }
+                        });
+                    }
+                }
+            } catch (backendAuthErr) {
+                console.warn("Backend auth check offline, falling back to cached state", backendAuthErr);
+            }
+
             if (!foundUser) {
                 setView(AuthView.LOGIN);
                 setFormError("wrong credentials");
@@ -1235,7 +1270,9 @@ function findUserInList(users: User[], rawIdentifier: string, rawPassword?: stri
             }
 
             // Direct login for Administrator without requiring a code
-            const isAdmin = foundUser.role === 'admin' || 
+            const isAdmin = (foundUser.role as string) === 'admin' || 
+                            (foundUser.role as string) === 'super_admin' || 
+                            (foundUser.role as string) === 'superadmin' || 
                             foundUser.id === 'adm_pris_001' || 
                             (foundUser.email && foundUser.email.toLowerCase().includes('admin'));
 
@@ -1267,7 +1304,7 @@ function findUserInList(users: User[], rawIdentifier: string, rawPassword?: stri
                     }, 5000).catch(() => {});
                 } catch (err) {}
 
-                setLoginSuccessMessage("Login successful.");
+                setLoginSuccessMessage("Administrator login successful.");
                 setIsLoginVerifying(false);
 
                 setTimeout(() => {
@@ -1279,6 +1316,7 @@ function findUserInList(users: User[], rawIdentifier: string, rawPassword?: stri
                             userId: foundUser.id
                         }
                     });
+                    setFormError(null);
                     setLoginSuccessMessage(null);
                 }, 500);
                 return;
@@ -3686,19 +3724,8 @@ function findUserInList(users: User[], rawIdentifier: string, rawPassword?: stri
                             <a href="tel:+18008228429" className="flex items-center gap-1.5 p-2 bg-white/5 hover:bg-white/10 rounded-xl border border-white/10 text-amber-200 transition">
                                 📞 USA Toll-Free: +1 800-822-8429
                             </a>
-                            <a href="tel:+447599186936" className="flex items-center gap-1.5 p-2 bg-white/5 hover:bg-white/10 rounded-xl border border-white/10 text-amber-200 transition">
-                                📞 UK Hotline: +44 7599 186936
-                            </a>
-                            <a href="https://wa.me/447922284110" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 p-2 bg-white/5 hover:bg-white/10 rounded-xl border border-white/10 text-emerald-300 transition">
-                                💬 WhatsApp: +44 7922 284110
-                            </a>
-                            <a href="mailto:supportcathaybank@gmail.com" className="flex items-center gap-1.5 p-2 bg-white/5 hover:bg-white/10 rounded-xl border border-white/10 text-slate-200 transition truncate">
-                                ✉️ supportcathaybank@gmail.com
-                            </a>
-                        </div>
-                        <div className="pt-0.5">
-                            <a href="mailto:reportphishing@cathaybank.com" className="flex items-center gap-1.5 p-2 bg-white/5 hover:bg-white/10 rounded-xl border border-white/10 text-rose-300 transition text-[10px] font-semibold truncate">
-                                🛡️ Security / Phishing: reportphishing@cathaybank.com
+                            <a href="mailto:support@cathabankusa.com" className="flex items-center gap-1.5 p-2 bg-white/5 hover:bg-white/10 rounded-xl border border-white/10 text-emerald-300 transition truncate">
+                                ✉️ Support Desk: support@cathabankusa.com
                             </a>
                         </div>
                     </div>
@@ -3752,11 +3779,6 @@ function findUserInList(users: User[], rawIdentifier: string, rawPassword?: stri
                             <p className="font-extrabold text-emerald-400 uppercase">Cathay Corporate HQ Branch</p>
                             <p className="text-slate-300 mt-0.5">Broadway Center, USA</p>
                             <p className="text-slate-400 text-[10px] mt-1">📞 Tel: +1 800-822-8429 • 24/7 Toll-Free USA</p>
-                        </div>
-                        <div className="p-3 bg-white/5 rounded-2xl border border-white/10">
-                            <p className="font-extrabold text-emerald-400 uppercase">Cathay UK & European Division</p>
-                            <p className="text-slate-300 mt-0.5">London Financial Center, United Kingdom</p>
-                            <p className="text-slate-400 text-[10px] mt-1">📞 Call: +44 7599 186936 • 💬 WhatsApp: +44 7922 284110</p>
                         </div>
                         <div className="p-3 bg-white/5 rounded-2xl border border-white/10">
                             <p className="font-extrabold text-emerald-400 uppercase">Cathay Commercial Branch</p>
