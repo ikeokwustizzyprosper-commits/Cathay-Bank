@@ -1,12 +1,10 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Cathay Bank Online Banking - Secure Backend Service Layer
-    // When operating behind the Express proxy server, server requests are permitted
-    // while client browser access is mediated by the Node backend API endpoints.
+    // All privileged data access is performed by the authenticated server.
+    // The browser must not be able to bypass server-side authorization.
     match /{document=**} {
-      allow read, write: if true;
+      allow read, write: if false;
     }
   }
 }
-

@@ -29,7 +29,7 @@ const emailDedupeCache = new Map<string, number>();
 export function getServerEmailConfigStatus() {
     const resendKey = process.env.RESEND_API_KEY;
     const sendgridKey = process.env.SENDGRID_API_KEY;
-    let provider: 'resend' | 'sendgrid' | 'simulation' = 'simulation';
+    let provider: 'resend' | 'sendgrid' | 'none' = 'none';
     let isConfigured = false;
     let maskedKey = '';
 
@@ -89,7 +89,9 @@ export async function sendTransactionalEmail(
         recipient: opts.recipient,
         emailType: opts.emailType,
         subject: opts.subject,
-        body: opts.bodyHtml,
+        body: opts.emailType === 'Email Verification' || opts.emailType === 'Verification Code'
+            ? '[verification content redacted]'
+            : opts.bodyHtml,
         createdTimestamp: new Date().toISOString(),
         retryCount: 0,
         providerUsed: 'simulation'
@@ -104,6 +106,21 @@ export async function sendTransactionalEmail(
     let sendSuccess = false;
     let failureReason: string | undefined;
     let providerUsed = 'simulation';
+
+    if (!resendKey && !sendgridKey) {
+        emailRecord.emailStatus = 'Failed';
+        emailRecord.failureReason = 'No transactional email provider is configured.';
+        if (!dbState.emails) dbState.emails = [];
+        dbState.emails.unshift(emailRecord);
+        saveLocalState();
+        return {
+            success: false,
+            emailId,
+            simulated: false,
+            providerUsed: 'none',
+            warning: emailRecord.failureReason
+        };
+    }
 
     if (resendKey) {
         providerUsed = 'resend';
@@ -205,12 +222,6 @@ export async function sendTransactionalEmail(
             emailRecord.emailStatus = 'Failed';
             emailRecord.failureReason = failureReason;
         }
-    } else {
-        // Simulated email delivery in Test Environment
-        sendSuccess = true;
-        emailRecord.emailStatus = 'Sent';
-        emailRecord.sentTimestamp = new Date().toISOString();
-        emailRecord.providerUsed = 'simulation';
     }
 
     // Save to in-memory state & data.json
@@ -391,13 +402,17 @@ export function buildEmailVerificationEmail(data: {
         Enter this 6-digit code on the registration screen to confirm your email address and continue opening your account.
       </p>
 
+      <p style="margin: 0 0 16px 0; font-size: 13px; color: #b45309; font-weight: 700;">
+        This code expires in 15 minutes. Never share it with anyone, including someone claiming to represent Cathay Bank.
+      </p>
+
       <p style="margin: 0; font-size: 13px; color: #64748b;">
         If you did not initiate an account opening request with Cathay Bank, please disregard this email.
       </p>
     `;
 
     return {
-        subject: `Cathay Bank — Your Account Registration Code (${data.verificationCode})`,
+        subject: "Cathay Bank — Your Account Registration Code",
         bodyHtml: emailBaseWrapper("Registration Code", content)
     };
 }
@@ -787,4 +802,3 @@ export function buildSystemTestEmail(data: {
         bodyHtml: emailBaseWrapper("System Test Verification", content)
     };
 }
-

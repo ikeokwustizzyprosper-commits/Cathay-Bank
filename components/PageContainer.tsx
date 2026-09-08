@@ -4601,10 +4601,7 @@ const CreateUserModal: React.FC<{ isOpen: boolean, onClose: () => void }> = ({ i
             const data = await res.json();
             if (data.success) {
                 setVerificationCodeSent(true);
-                setVerificationFeedback(data.mockCode 
-                    ? `Verification code dispatched to ${email.trim()}. (Confirmation Code: ${data.mockCode})`
-                    : `Verification code successfully dispatched to ${email.trim()}. Please enter the 6-digit code below to confirm.`
-                );
+                setVerificationFeedback(`Verification code successfully dispatched to ${email.trim()}. Please enter the 6-digit code below to confirm.`);
             } else {
                 alert(data.error || 'Failed to dispatch verification code.');
             }

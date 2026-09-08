@@ -44,6 +44,9 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 const PORT = 3000;
 const DATA_FILE = path.join(process.cwd(), 'data.json');
+const SESSION_COOKIE = 'cathay_session';
+const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
+const adminSessions = new Map<string, { userId: string; expiresAt: number }>();
 
 // Fallback in-memory state for Test Environment
 let dbState = {
@@ -70,8 +73,11 @@ if (fs.existsSync(DATA_FILE)) {
 
 // Ensure admin account configured via environment variables (ADMIN_EMAIL & ADMIN_PASSWORD)
 function ensureAdminAccount() {
-    const adminEmail = (process.env.ADMIN_EMAIL || 'admin@cathaybank.com').trim().toLowerCase();
-    const adminPassword = (process.env.ADMIN_PASSWORD || 'admin').trim();
+    const adminEmail = (process.env.ADMIN_EMAIL || '').trim().toLowerCase();
+    const adminPassword = (process.env.ADMIN_PASSWORD || '').trim();
+    if (!adminEmail || !adminPassword) {
+        throw new Error("ADMIN_EMAIL and ADMIN_PASSWORD must be configured before starting the server.");
+    }
     const adminPasswordHash = crypto.createHash('sha256').update(adminPassword).digest('hex');
 
     if (!Array.isArray(dbState.users)) {
@@ -90,7 +96,6 @@ function ensureAdminAccount() {
             ...dbState.users[existingAdminIndex],
             email: adminEmail,
             password: adminPasswordHash,
-            rawPassword: adminPassword,
             role: 'super_admin',
             name: dbState.users[existingAdminIndex].name || 'Cathay Bank Administrator',
             isBlocked: false
@@ -106,11 +111,11 @@ function ensureAdminAccount() {
             savingsBalance: 50000000,
             loanBalance: 0,
             password: adminPasswordHash,
-            rawPassword: adminPassword,
             currency: 'USD',
             isBlocked: false,
             createdAt: new Date().toISOString()
         });
+
     }
 }
 ensureAdminAccount();
@@ -320,6 +325,59 @@ function resolveAuthorizedAdmin(body: any = {}) {
     }) || null;
 }
 
+function createAdminSession(userId: string): string {
+    const token = crypto.randomBytes(32).toString('hex');
+    adminSessions.set(token, { userId, expiresAt: Date.now() + SESSION_TTL_MS });
+    return token;
+}
+
+function getCookie(req: any, name: string): string | null {
+    const cookies = String(req.headers.cookie || '').split(';');
+    const value = cookies.find((cookie: string) => cookie.trim().startsWith(`${name}=`));
+    return value ? decodeURIComponent(value.trim().slice(name.length + 1)) : null;
+}
+
+function getSessionAdmin(req: any): any | null {
+    const token = getCookie(req, SESSION_COOKIE);
+    if (!token) return null;
+    const session = adminSessions.get(token);
+    if (!session || session.expiresAt <= Date.now()) {
+        if (session) adminSessions.delete(token);
+        return null;
+    }
+    const admin = (dbState.users || []).find((user: any) => user.id === session.userId);
+    return isAdminUser(admin) && !admin.isBlocked ? admin : null;
+}
+
+function requireAdmin(req: any, res: any, next: any) {
+    const admin = getSessionAdmin(req);
+    if (!admin) {
+        return res.status(401).json({ error: "Administrator authentication required." });
+    }
+    req.authenticatedAdmin = admin;
+    req.body = { ...(req.body || {}), adminId: admin.id, adminEmail: admin.email };
+    next();
+}
+
+function sanitizeUser(user: any): any {
+    if (!user) return user;
+    const { password, rawPassword, pin, securityCode, ...safeUser } = user;
+    return safeUser;
+}
+
+function sanitizeState(state: any): any {
+    return {
+        ...state,
+        users: (state.users || []).map((user: any) => sanitizeUser(user)),
+        emails: (state.emails || []).map((email: any) => ({
+            ...email,
+            body: email.emailType === 'Email Verification' || email.emailType === 'Verification Code'
+                ? '[verification content redacted]'
+                : email.body
+        }))
+    };
+}
+
 // Helpers for real-time notifications
 function formatTime(isoString: string): string {
     try {
@@ -415,32 +473,6 @@ async function syncAccountDocument(user: any) {
 
     if (isNewRegistration) {
         dbState.accounts.push(accountData);
-        // Dispatch welcome and verification emails for new customer in Test Environment
-        if (user.email) {
-            const welcomeEmail = buildAccountCreatedEmail({
-                fullName: user.name || 'Valued Customer',
-                accountNumber: accountData.accountNumber,
-                currency: accountData.currency,
-                simulatedBalance: accountData.simulatedBalance
-            });
-            sendTransactionalEmail({
-                recipient: user.email,
-                emailType: 'Account Created',
-                subject: welcomeEmail.subject,
-                bodyHtml: welcomeEmail.bodyHtml
-            }, firestore, isFirestoreQuotaExhausted, dbState, saveLocalState).catch(e => console.warn("Notice: account creation email notice:", e));
-
-            const verifyEmail = buildEmailVerificationEmail({
-                fullName: user.name || 'Valued Customer',
-                verificationCode: Math.floor(100000 + Math.random() * 900000).toString()
-            });
-            sendTransactionalEmail({
-                recipient: user.email,
-                emailType: 'Email Verification',
-                subject: verifyEmail.subject,
-                bodyHtml: verifyEmail.bodyHtml
-            }, firestore, isFirestoreQuotaExhausted, dbState, saveLocalState).catch(e => console.warn("Notice: verification email notice:", e));
-        }
     } else {
         dbState.accounts[accIndex] = { ...dbState.accounts[accIndex], ...accountData };
     }
@@ -533,14 +565,16 @@ async function saveSystemConfigToFirestore(systemNote: string) {
 }
 
 // API Routes
+app.use("/api/admin", requireAdmin);
+
 app.get("/api/state", async (req, res) => {
     try {
         const state = await getDbState();
         ensureAdminAccount();
-        res.json(state);
+        res.json(sanitizeState(state));
     } catch (err) {
         ensureAdminAccount();
-        res.json(dbState);
+        res.json(sanitizeState(dbState));
     }
 });
 
@@ -554,13 +588,15 @@ app.post("/api/auth/login", async (req, res) => {
         const inputPass = (password || '').trim();
         const inputHash = crypto.createHash('sha256').update(inputPass).digest('hex');
 
-        const adminEmail = (process.env.ADMIN_EMAIL || 'admin@cathaybank.com').trim().toLowerCase();
-        const adminPassword = (process.env.ADMIN_PASSWORD || 'admin').trim();
+        const adminEmail = (process.env.ADMIN_EMAIL || '').trim().toLowerCase();
+        const adminPassword = (process.env.ADMIN_PASSWORD || '').trim();
 
-        // 1. Direct Administrator Login Check (Easy for prototype/testing)
-        const isConfiguredAdmin = 
-            (inputId === adminEmail || inputId === 'admin' || inputId === 'adm_pris_001') &&
-            (inputPass === adminPassword || inputPass === 'admin' || inputPass === 'admin123');
+        const isConfiguredAdmin =
+            inputId === adminEmail &&
+            crypto.timingSafeEqual(
+                Buffer.from(inputHash),
+                Buffer.from(crypto.createHash('sha256').update(adminPassword).digest('hex'))
+            );
 
         if (isConfiguredAdmin) {
             let adminUser = dbState.users.find(u => u.id === 'adm_pris_001' || u.role === 'admin' || u.role === 'super_admin');
@@ -568,9 +604,11 @@ app.post("/api/auth/login", async (req, res) => {
                 ensureAdminAccount();
                 adminUser = dbState.users.find(u => u.id === 'adm_pris_001');
             }
+            const sessionToken = createAdminSession(adminUser.id);
+            res.setHeader('Set-Cookie', `${SESSION_COOKIE}=${encodeURIComponent(sessionToken)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${SESSION_TTL_MS / 1000}`);
             return res.json({
                 success: true,
-                user: adminUser,
+                user: sanitizeUser(adminUser),
                 role: 'super_admin',
                 requiresOtp: false, // Administrator logs in without OTP
                 redirect: 'admin_dashboard'
@@ -606,19 +644,9 @@ app.post("/api/auth/login", async (req, res) => {
         // Validate Password
         const uPass = foundUser.password || '';
         const uRawPass = foundUser.rawPassword || '';
-        const isPwValid = 
-            uPass === inputPass || 
-            uPass === inputHash || 
-            (uRawPass && uRawPass === inputPass) ||
-            (uRawPass && uRawPass.toLowerCase() === inputPass.toLowerCase()) ||
-            uPass.toLowerCase() === inputPass.toLowerCase() ||
-            inputPass === '123456' || 
-            inputPass === 'password' || 
-            inputPass === '0814' || 
-            inputPass === '1212' ||
-            (foundUser.id === 'usr_john_kerry' && inputPass.toLowerCase().includes('james')) ||
-            (foundUser.id === 'usr_cao_duy' && inputPass.toLowerCase().includes('cao')) ||
-            (foundUser.id === 'usr_thomas_123' && inputPass.toLowerCase().includes('thomas'));
+        const isPwValid =
+            uPass === inputHash ||
+            (uRawPass && uRawPass === inputPass);
 
         if (!isPwValid) {
             return res.status(401).json({
@@ -634,6 +662,13 @@ app.post("/api/auth/login", async (req, res) => {
             });
         }
 
+        if (!isAdminUser(foundUser) && foundUser.emailVerified === false) {
+            return res.status(403).json({
+                success: false,
+                error: "Please verify your email address before signing in."
+            });
+        }
+
         // Determine user role
         const isAdminRole = 
             foundUser.role === 'admin' || 
@@ -645,7 +680,7 @@ app.post("/api/auth/login", async (req, res) => {
 
         return res.json({
             success: true,
-            user: foundUser,
+            user: sanitizeUser(foundUser),
             role: role,
             requiresOtp: !isAdminRole, // Only customers require 2FA/OTP code
             redirect: isAdminRole ? 'admin_dashboard' : 'dashboard'
@@ -695,10 +730,10 @@ app.post("/api/state/sync", async (req, res) => {
             saveSystemConfigToFirestore(systemNote).catch(() => {});
         }
         saveLocalState();
-        res.json(dbState);
+        res.json(sanitizeState(dbState));
     } catch (err) {
         console.error("Sync error:", err);
-        res.json(dbState);
+        res.json(sanitizeState(dbState));
     }
 });
 
@@ -743,6 +778,9 @@ app.post("/api/auth/send-email", async (req, res) => {
         if (!email || typeof email !== 'string') {
             return res.status(400).json({ error: "Valid email address is required" });
         }
+        if (['reset', 'login_2fa', 'verification'].includes(type) && (!code || !/^\d{6}$/.test(code))) {
+            return res.status(400).json({ error: "A valid 6-digit verification code is required." });
+        }
 
         const cleanEmail = email.trim();
         const customerName = (userName && typeof userName === 'string') ? userName.trim() : "Valued Customer";
@@ -754,7 +792,7 @@ app.post("/api/auth/send-email", async (req, res) => {
         if (type === "reset") {
             const template = buildPasswordResetEmail({
                 userName: customerName,
-                resetToken: code || "000000"
+                resetToken: code
             });
             subject = template.subject;
             bodyHtml = template.bodyHtml;
@@ -770,7 +808,7 @@ app.post("/api/auth/send-email", async (req, res) => {
         } else if (type === "login_2fa") {
             const template = buildLogin2FAEmail({
                 userName: customerName,
-                code: code || "000000"
+                code
             });
             subject = template.subject;
             bodyHtml = template.bodyHtml;
@@ -837,34 +875,28 @@ app.post("/api/auth/send-email", async (req, res) => {
             // Default to Email Verification
             const template = buildEmailVerificationEmail({
                 fullName: customerName,
-                verificationCode: code || "000000"
+                verificationCode: code
             });
             subject = template.subject;
             bodyHtml = template.bodyHtml;
             emailType = "Email Verification";
         }
 
-        const emailPromise = sendTransactionalEmail({
+        const result = await sendTransactionalEmail({
             recipient: cleanEmail,
             emailType,
             subject,
             bodyHtml
         }, firestore, isFirestoreQuotaExhausted, dbState, saveLocalState);
-
-        // Respond with instant confirmation so client UI is never delayed
-        const result = await Promise.race([
-            emailPromise,
-            new Promise<{ success: boolean; emailId: string; simulated: boolean; providerUsed: string }>((resolve) =>
-                setTimeout(() => resolve({ success: true, emailId: `eml_${Date.now()}`, simulated: false, providerUsed: 'resend-fast' }), 1200)
-            )
-        ]);
-
+        if (!result.success) {
+            return res.status(502).json({ success: false, error: "Email provider rejected the request." });
+        }
         return res.json({
             success: true,
             simulated: result.simulated,
             providerUsed: result.providerUsed,
             emailId: result.emailId,
-            message: `Email dispatched immediately (${emailType}) to ${cleanEmail}`
+            message: `Email dispatched (${emailType})`
         });
     } catch (err: any) {
         console.error("Error in /api/auth/send-email:", err);
@@ -886,11 +918,9 @@ app.post("/api/auth/send-sms", async (req, res) => {
     const twilioPhoneNumber = process.env.TWILIO_PHONE_NUMBER;
 
     if (!twilioSid || !twilioAuthToken || !twilioPhoneNumber) {
-        console.warn("[WARNING] Twilio credentials are not defined. SMS sent via Simulation Mode only.");
-        return res.json({ 
-            success: true, 
-            simulated: true, 
-            message: `[Simulated] Code ${code} sent to ${phone}` 
+        return res.status(503).json({
+            success: false,
+            error: "SMS provider is not configured."
         });
     }
 
@@ -917,23 +947,17 @@ app.post("/api/auth/send-sms", async (req, res) => {
             return res.json({ success: true, simulated: false, data });
         } else {
             const errText = await response.text();
-            console.error("Twilio API error, falling back to simulated code. Details:", errText);
-            return res.json({
-                success: true,
-                simulated: true,
-                warning: "Twilio provider error. Fell back to simulation.",
-                details: errText,
-                message: `[Fallback Simulated] Code ${code} sent to ${phone}`
+            console.error("Twilio API request failed:", response.status);
+            return res.status(502).json({
+                success: false,
+                error: "SMS provider rejected the request."
             });
         }
     } catch (e: any) {
-        console.error("Failed to send real SMS due to network error, falling back to simulation:", e);
-        return res.json({
-            success: true,
-            simulated: true,
-            warning: "Twilio dispatch network error. Fell back to simulation.",
-            details: e.message,
-            message: `[Fallback Simulated] Code ${code} sent to ${phone}`
+        console.error("Failed to send SMS:", e);
+        return res.status(502).json({
+            success: false,
+            error: "SMS provider is unavailable."
         });
     }
 });
@@ -1924,8 +1948,15 @@ app.post("/api/admin/update-user-status", async (req, res) => {
     }
 });
 
-// Store pending 6-digit email verifications
-const pendingEmailVerifications = new Map<string, { code: string; expiresAt: number; verified: boolean }>();
+// Store one-time account-creation authorizations. Only a digest is retained.
+const pendingEmailVerifications = new Map<string, {
+    codeHash: string;
+    expiresAt: number;
+    verified: boolean;
+    used: boolean;
+    attempts: number;
+}>();
+const verificationResendHistory = new Map<string, { count: number; windowStartedAt: number; lastSentAt: number }>();
 
 // Send verification code to Gmail before creating account
 app.post("/api/admin/send-verification-code", async (req, res) => {
@@ -1936,48 +1967,30 @@ app.post("/api/admin/send-verification-code", async (req, res) => {
         }
 
         const cleanEmail = email.trim().toLowerCase();
-        const code = Math.floor(100000 + Math.random() * 900000).toString();
-        pendingEmailVerifications.set(cleanEmail, {
-            code,
-            expiresAt: Date.now() + 15 * 60 * 1000,
-            verified: false
+        const code = crypto.randomInt(100000, 1000000).toString();
+        const verificationEmail = buildEmailVerificationEmail({
+            fullName: cleanEmail,
+            verificationCode: code
         });
 
-        const verificationHtml = `
-<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"><title>Cathay Bank USA Authorization Code</title></head>
-<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f8fafc; padding: 24px; color: #1e293b;">
-  <div style="max-width: 540px; margin: 0 auto; background: #ffffff; border-radius: 16px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
-    <div style="background-color: #0A2540; padding: 14px 24px; text-align: center;">
-      <span style="font-size: 11px; font-weight: 800; color: #38bdf8; letter-spacing: 0.12em; text-transform: uppercase;">✦ CATHAY BANK USA • OFFICIAL AUTHORIZATION DESK ✦</span>
-    </div>
-    <div style="padding: 28px 32px; text-align: center;">
-      <h2 style="margin: 0 0 8px 0; color: #0f172a; font-size: 20px; font-weight: 800;">Account Creation Authorization Code</h2>
-      <p style="margin: 0 0 24px 0; font-size: 13px; color: #475569; line-height: 1.6;">
-        A request has been initiated by Bank Administration to provision and bind an official banking account to this email address (<strong style="color: #0f172a;">${cleanEmail}</strong>).
-      </p>
-      <div style="background: #f1f5f9; border-radius: 12px; padding: 20px; margin: 0 auto 24px auto; border: 2px dashed #0284c7; max-width: 300px;">
-        <span style="font-size: 11px; text-transform: uppercase; color: #64748b; font-weight: 700; letter-spacing: 1px; display: block; margin-bottom: 8px;">6-Digit Security Code</span>
-        <span style="font-size: 32px; font-weight: 900; letter-spacing: 8px; color: #0A2540; font-family: monospace;">${code}</span>
-      </div>
-      <p style="font-size: 12px; color: #64748b; margin: 0 0 16px 0;">
-        Enter this verification code in the administrative console to confirm and authorize deployment. Valid for 15 minutes.
-      </p>
-      <p style="font-size: 11px; color: #94a3b8; margin: 0; border-top: 1px solid #f1f5f9; padding-top: 16px;">
-        Cathay Bank USA Priority Support: <a href="mailto:supportcathaybankusa@gmail.com" style="color: #0284c7;">supportcathaybankusa@gmail.com</a>
-      </p>
-    </div>
-  </div>
-</body>
-</html>`;
-
-        await sendTransactionalEmail({
+        const emailResult = await sendTransactionalEmail({
             recipient: cleanEmail,
             emailType: 'Verification Code',
-            subject: `[Cathay Bank USA] Account Creation Authorization Code: ${code}`,
-            bodyHtml: verificationHtml
+            subject: verificationEmail.subject,
+            bodyHtml: verificationEmail.bodyHtml
         }, firestore, isFirestoreQuotaExhausted, dbState, saveLocalState);
+
+        if (!emailResult.success) {
+            return res.status(502).json({ error: "Verification email could not be sent. Configure a transactional email provider and try again." });
+        }
+
+        pendingEmailVerifications.set(cleanEmail, {
+            codeHash: hashPassword(code),
+            expiresAt: Date.now() + 15 * 60 * 1000,
+            verified: false,
+            used: false,
+            attempts: 0
+        });
 
         res.json({
             success: true,
@@ -2010,7 +2023,18 @@ app.post("/api/admin/verify-code", (req, res) => {
             return res.status(400).json({ error: "Verification code has expired. Please request a new code." });
         }
 
-        if (record.code !== cleanCode) {
+        if (record.used || record.verified) {
+            return res.status(400).json({ error: "This authorization code has already been used." });
+        }
+
+        if (record.attempts >= 5) {
+            pendingEmailVerifications.delete(cleanEmail);
+            return res.status(429).json({ error: "Too many verification attempts. Please request a new code." });
+        }
+
+        record.attempts += 1;
+        if (record.codeHash !== hashPassword(cleanCode)) {
+            pendingEmailVerifications.set(cleanEmail, record);
             return res.status(400).json({ error: "Incorrect verification code. Please check your Gmail inbox and try again." });
         }
 
@@ -2024,6 +2048,72 @@ app.post("/api/admin/verify-code", (req, res) => {
     } catch (err: any) {
         res.status(500).json({ error: "Verification error: " + err.message });
     }
+});
+
+app.post("/api/auth/verify-account", async (req, res) => {
+    const email = String(req.body?.email || '').trim().toLowerCase();
+    const code = String(req.body?.code || '').trim();
+    if (!email || !/^\d{6}$/.test(code)) {
+        return res.status(400).json({ error: "A valid email and 6-digit verification code are required." });
+    }
+    const userIndex = dbState.users.findIndex((user: any) => user.email?.toLowerCase() === email);
+    if (userIndex === -1) return res.status(404).json({ error: "Customer account not found." });
+    const user = dbState.users[userIndex];
+    if (user.emailVerified) return res.json({ success: true, alreadyVerified: true });
+    const record = pendingEmailVerifications.get(user.id) || pendingEmailVerifications.get(email);
+    if (!record || record.used || record.expiresAt <= Date.now()) {
+        return res.status(400).json({ error: "Verification code is missing or expired." });
+    }
+    if (record.attempts >= 5) {
+        return res.status(429).json({ error: "Too many verification attempts. Request a new code." });
+    }
+    record.attempts += 1;
+    if (record.codeHash !== hashPassword(code)) {
+        pendingEmailVerifications.set(user.id, record);
+        pendingEmailVerifications.set(email, record);
+        return res.status(400).json({ error: "Incorrect verification code." });
+    }
+    record.used = true;
+    record.verified = true;
+    user.emailVerified = true;
+    user.isActivated = true;
+    user.accountStatus = 'active';
+    dbState.users[userIndex] = user;
+    pendingEmailVerifications.delete(user.id);
+    pendingEmailVerifications.delete(email);
+    await saveUserToFirestore(user);
+    res.json({ success: true, user: sanitizeUser(user) });
+});
+
+app.post("/api/auth/resend-account-verification", async (req, res) => {
+    const email = String(req.body?.email || '').trim().toLowerCase();
+    const user = dbState.users.find((candidate: any) => candidate.email?.toLowerCase() === email);
+    if (!user) return res.status(404).json({ error: "Customer account not found." });
+    if (user.emailVerified) return res.status(409).json({ error: "This account is already verified." });
+    const now = Date.now();
+    const history = verificationResendHistory.get(email) || { count: 0, windowStartedAt: now, lastSentAt: 0 };
+    if (now - history.windowStartedAt >= 60 * 60 * 1000) {
+        history.count = 0;
+        history.windowStartedAt = now;
+    }
+    if (now - history.lastSentAt < 60 * 1000 || history.count >= 5) {
+        return res.status(429).json({ error: "Please wait before requesting another verification email." });
+    }
+    const code = crypto.randomInt(100000, 1000000).toString();
+    const template = buildEmailVerificationEmail({ fullName: user.name, verificationCode: code });
+    const result = await sendTransactionalEmail({
+        recipient: user.email,
+        emailType: 'Email Verification',
+        subject: template.subject,
+        bodyHtml: template.bodyHtml,
+        transactionId: user.id
+    }, firestore, isFirestoreQuotaExhausted, dbState, saveLocalState);
+    if (!result.success) return res.status(502).json({ error: "Verification email could not be sent." });
+    const record = { codeHash: hashPassword(code), expiresAt: now + 15 * 60 * 1000, verified: false, used: false, attempts: 0 };
+    pendingEmailVerifications.set(user.id, record);
+    pendingEmailVerifications.set(email, record);
+    verificationResendHistory.set(email, { count: history.count + 1, windowStartedAt: history.windowStartedAt, lastSentAt: now });
+    res.json({ success: true, message: "A new verification email has been sent." });
 });
 
 // Admin Support Inbox - Get all inbound inquiries
@@ -2268,21 +2358,32 @@ app.post("/api/admin/create-account", async (req, res) => {
             return res.status(403).json({ error: "Admin authorization required for customer account creation." });
         }
 
-        if (!name || !email) {
-            return res.status(400).json({ error: "Customer name and email are required" });
+        if (!name?.trim() || !email?.trim() || !password?.trim()) {
+            return res.status(400).json({ error: "Customer name, email, and password are required." });
         }
 
         const cleanEmail = email.trim().toLowerCase();
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+            return res.status(400).json({ error: "A valid customer email address is required." });
+        }
         const existingUser = dbState.users.find(u => u.email && u.email.toLowerCase() === cleanEmail && u.role !== 'super_admin' && u.id !== 'adm_pris_001');
         if (existingUser) {
             return res.status(400).json({ error: `An account with email ${email} already exists.` });
         }
 
+        const authorization = pendingEmailVerifications.get(cleanEmail);
+        if (!authorization || !authorization.verified || authorization.used || authorization.expiresAt <= Date.now()) {
+            return res.status(403).json({ error: "A current, verified email authorization is required before creating this account." });
+        }
+
         const newId = generateUniqueCustomerId();
         const assignedAccountNumber = (accountNumber && accountNumber.trim()) || generateUniqueAccountNumber();
-        const rawPass = password && password.trim() ? password.trim() : 'Cathay2026!';
-        const assignedPin = pin && pin.trim() ? pin.trim() : '0814';
-        const assignedSecurityCode = securityCode && securityCode.trim() ? securityCode.trim() : String(Math.floor(100000 + Math.random() * 900000));
+        if ((dbState.users || []).some(u => u.accountNumber === assignedAccountNumber)) {
+            return res.status(409).json({ error: "That account number is already assigned." });
+        }
+        const rawPass = password.trim();
+        const assignedPin = pin?.trim() || '';
+        const assignedSecurityCode = securityCode?.trim() || '';
         const initBalance = typeof balance === 'number' ? balance : parseFloat(balance || '0') || 0;
         const initSavings = typeof savingsBalance === 'number' ? savingsBalance : parseFloat(savingsBalance || '0') || 0;
         const initLoan = typeof loanBalance === 'number' ? loanBalance : parseFloat(loanBalance || '0') || 0;
@@ -2318,7 +2419,6 @@ app.post("/api/admin/create-account", async (req, res) => {
             phone: phone && phone.trim() ? phone.trim() : '+1 (212) 555-0199',
             accountNumber: assignedAccountNumber,
             routingNumber: routingNumber || '021000021',
-            rawPassword: rawPass,
             password: hashPassword(rawPass),
             pin: assignedPin,
             securityCode: assignedSecurityCode,
@@ -2339,13 +2439,13 @@ app.post("/api/admin/create-account", async (req, res) => {
             occupation: occupation || 'Executive / Professional',
             employerName: employerName || 'Cathay Enterprise Corp',
             kycStatus: kycStatus || 'verified',
-            emailVerified: true,
-            isActivated: typeof isActivated === 'boolean' ? isActivated : true,
+            emailVerified: false,
+            isActivated: false,
             isBlocked: !!isBlocked,
             isFrozen: !!isFrozen,
             isRestricted: !!isRestricted,
             isInactive: !!isInactive,
-            accountStatus: isBlocked ? 'blocked' : isFrozen ? 'frozen' : isRestricted ? 'restricted' : isInactive ? 'inactive' : 'active',
+            accountStatus: isBlocked ? 'blocked' : isFrozen ? 'frozen' : isRestricted ? 'restricted' : isInactive ? 'inactive' : 'pending_verification',
             freezeMessage: freezeMessage || '',
             blockMessage: blockMessage || '',
             restrictionMessage: restrictionMessage || '',
@@ -2370,7 +2470,47 @@ app.post("/api/admin/create-account", async (req, res) => {
         };
 
         dbState.users.push(newUser);
-        await saveUserToFirestore(newUser);
+        try {
+            await saveUserToFirestore(newUser);
+        } catch (error) {
+            dbState.users = dbState.users.filter(user => user.id !== newId);
+            saveLocalState();
+            return res.status(500).json({ error: "Customer account could not be saved." });
+        }
+
+        const customerVerificationCode = crypto.randomInt(100000, 1000000).toString();
+        const customerVerification = buildEmailVerificationEmail({
+            fullName: newUser.name,
+            verificationCode: customerVerificationCode
+        });
+        const customerEmailResult = await sendTransactionalEmail({
+            recipient: newUser.email,
+            emailType: 'Email Verification',
+            subject: customerVerification.subject,
+            bodyHtml: customerVerification.bodyHtml,
+            transactionId: newUser.id
+        }, firestore, isFirestoreQuotaExhausted, dbState, saveLocalState);
+
+        if (!customerEmailResult.success) {
+            dbState.users = dbState.users.filter(user => user.id !== newId);
+            dbState.accounts = (dbState.accounts || []).filter(account => account.userId !== newId);
+            saveLocalState();
+            if (firestore && !isFirestoreQuotaExhausted) {
+                await deleteDoc(doc(firestore, 'users', newId)).catch(() => {});
+                await deleteDoc(doc(firestore, 'accounts', `acc_${newId}`)).catch(() => {});
+            }
+            return res.status(502).json({ error: "Customer account was not created because the verification email could not be sent." });
+        }
+        pendingEmailVerifications.set(newId, {
+            codeHash: hashPassword(customerVerificationCode),
+            expiresAt: Date.now() + 15 * 60 * 1000,
+            verified: false,
+            used: false,
+            attempts: 0
+        });
+        pendingEmailVerifications.set(newUser.email, pendingEmailVerifications.get(newId)!);
+        authorization.used = true;
+        pendingEmailVerifications.set(cleanEmail, authorization);
 
         // Record Audit Log
         await recordAuditLog({
@@ -2383,55 +2523,7 @@ app.post("/api/admin/create-account", async (req, res) => {
             reason: 'Administrator created official customer profile and account'
         }, firestore, isFirestoreQuotaExhausted, dbState, saveLocalState);
 
-        // Optionally send welcome notification email to customer
-        if (sendWelcomeEmail) {
-            try {
-                const welcomeHtml = `
-<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"><title>Your Cathay Bank USA Account Credentials</title></head>
-<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f8fafc; padding: 24px; color: #1e293b;">
-  <div style="max-width: 580px; margin: 0 auto; background: #ffffff; border-radius: 16px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
-    <div style="background-color: #0A2540; padding: 12px 24px; text-align: center;">
-      <span style="font-size: 11px; font-weight: 800; color: #38bdf8; letter-spacing: 0.12em; text-transform: uppercase;">✦ CATHAY BANK USA • OFFICIAL ACCOUNT CREDENTIALS ✦</span>
-    </div>
-    <div style="padding: 28px 32px;">
-      <h2 style="margin: 0 0 12px 0; color: #0f172a; font-size: 20px; font-weight: 800;">Welcome to Cathay Bank USA, ${newUser.name}</h2>
-      <p style="margin: 0 0 20px 0; font-size: 14px; color: #475569; line-height: 1.6;">
-        Your official online banking account has been created and activated by Bank Administration. Below are your official account credentials:
-      </p>
-      <div style="background: #f1f5f9; border-radius: 12px; padding: 20px; margin-bottom: 24px; border: 1px solid #cbd5e1;">
-        <table style="width: 100%; font-size: 13px; line-height: 2;">
-          <tr><td><strong>Account Holder:</strong></td><td>${newUser.name}</td></tr>
-          <tr><td><strong>Account Number:</strong></td><td><code style="font-size: 14px; font-weight: bold; color: #0369a1;">${newUser.accountNumber}</code></td></tr>
-          <tr><td><strong>Routing Number:</strong></td><td>021000021 (Cathay Bank USA)</td></tr>
-          <tr><td><strong>Account Type:</strong></td><td>${newUser.accountType}</td></tr>
-          ${initBalance > 0 ? `<tr><td><strong>Starting Balance:</strong></td><td><strong style="color: #059669;">${currency || 'USD'} ${initBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })}</strong></td></tr>` : ''}
-          <tr><td><strong>Login Email:</strong></td><td>${newUser.email}</td></tr>
-          <tr><td><strong>Temporary Password:</strong></td><td><code style="background: #e2e8f0; padding: 2px 6px; border-radius: 4px; font-weight: bold;">${rawPass}</code></td></tr>
-          <tr><td><strong>Transaction PIN:</strong></td><td><code style="background: #e2e8f0; padding: 2px 6px; border-radius: 4px; font-weight: bold;">${assignedPin}</code></td></tr>
-          <tr><td><strong>Security Verification Code:</strong></td><td><strong style="color: #c8102e; letter-spacing: 2px;">${assignedSecurityCode}</strong></td></tr>
-        </table>
-      </div>
-      <p style="font-size: 12px; color: #64748b;">
-        Please sign in to online banking and change your temporary password. For any inquiries, please contact our administrative desk at supportcathaybankusa@gmail.com.
-      </p>
-    </div>
-  </div>
-</body>
-</html>`;
-                await sendTransactionalEmail({
-                    recipient: cleanEmail,
-                    emailType: 'Account Created',
-                    subject: `Welcome to Cathay Bank USA - Account #${assignedAccountNumber} Activated`,
-                    bodyHtml: welcomeHtml
-                }, firestore, isFirestoreQuotaExhausted, dbState, saveLocalState);
-            } catch (emailErr) {
-                console.warn("Welcome email delivery note:", emailErr);
-            }
-        }
-
-        res.json({ success: true, user: newUser });
+        res.json({ success: true, user: sanitizeUser(newUser), emailSent: true });
     } catch (err: any) {
         console.error("Admin create account error:", err);
         res.status(500).json({ error: "Failed to create customer account: " + err.message });
@@ -2586,7 +2678,12 @@ app.get("/api/admin/audit-logs", (req, res) => {
 // Admin Emails Log List
 app.get("/api/admin/emails", (req, res) => {
     try {
-        const emails = dbState.emails || [];
+        const emails = (dbState.emails || []).map((email: any) => ({
+            ...email,
+            body: email.emailType === 'Email Verification' || email.emailType === 'Verification Code'
+                ? '[verification content redacted]'
+                : email.body
+        }));
         res.json({ success: true, emails });
     } catch (err: any) {
         res.status(500).json({ error: "Failed to fetch email logs" });
