@@ -72,11 +72,13 @@ export interface User {
   isBlocked?: boolean;
   isFrozen?: boolean;
   isRestricted?: boolean;
-  accountStatus?: 'active' | 'frozen' | 'blocked' | 'restricted';
+  isInactive?: boolean;
+  accountStatus?: 'active' | 'frozen' | 'blocked' | 'restricted' | 'inactive';
   statusReason?: string;
   freezeMessage?: string;
   blockMessage?: string;
   restrictionMessage?: string;
+  inactiveMessage?: string;
   isActivated?: boolean;
   fcmToken?: string;
   profession?: string;
@@ -90,6 +92,10 @@ export interface User {
   countryOfBirth?: string;
   citizenship?: string;
   residentialAddress?: string;
+  address?: string;
+  dateOfBirth?: string;
+  employer?: string;
+  postalCode?: string;
   apartmentUnit?: string;
   city?: string;
   state?: string;

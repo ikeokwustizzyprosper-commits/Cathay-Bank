@@ -220,12 +220,15 @@ const Chatbot: React.FC<{ isOpen: boolean; onClose: () => void; }> = ({ isOpen, 
                                                     />
                                                 )}
                                                 {msg.text && <p>{
-                                                    msg.text.split(/(supportcathaybankusa@gmail\.com|supportcathaybank@gmail\.com|prisparimobank@gmail\.com|\+1\s?\(?800\)?\s?988-?8888|\+1\s?\(?212\)?\s?555-?0199|\+44\s?7599\s?186936|\+44\s?7922\s?286845|\+44\s?7922\s?284110)/g).map((part, i) => {
+                                                    msg.text.split(/(supportcathaybankusa@gmail\.com|supportcathaybank@gmail\.com|prisparimobank@gmail\.com|\+1\s?\(?800\)?\s?988-?8888|\+1\s?\(?800\)?\s?822-?8429|\+1\s?\(?212\)?\s?555-?0199|\+1\s?\(?626\)?\s?279-?8800)/g).map((part, i) => {
                                                         if (part === 'supportcathaybankusa@gmail.com' || part === 'supportcathaybank@gmail.com' || part === 'prisparimobank@gmail.com') {
                                                             return <a key={i} href="mailto:supportcathaybankusa@gmail.com" className="text-blue-500 dark:text-blue-400 underline font-black">supportcathaybankusa@gmail.com</a>;
                                                         }
-                                                        if (part.includes('800') || part.includes('988')) {
-                                                            return <a key={i} href="tel:+18009888888" className="text-blue-500 dark:text-blue-400 underline font-black">+1 (800) 988-8888</a>;
+                                                        if (part.includes('800') || part.includes('988') || part.includes('822')) {
+                                                            return <a key={i} href="tel:+18008228429" className="text-blue-500 dark:text-blue-400 underline font-black">+1 (800) 822-8429</a>;
+                                                        }
+                                                        if (part.includes('626') || part.includes('279')) {
+                                                            return <a key={i} href="tel:+16262798800" className="text-blue-500 dark:text-blue-400 underline font-black">+1 (626) 279-8800</a>;
                                                         }
                                                         if (part.includes('212') || part.includes('555')) {
                                                             return <a key={i} href="tel:+12125550199" className="text-blue-500 dark:text-blue-400 underline font-black">+1 (212) 555-0199</a>;

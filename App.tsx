@@ -134,34 +134,19 @@ const getInitialState = (): AppState => {
           }
       });
       
-      // Ensure our required mock users are always present and updated
-      const requiredUsers = [MOCK_USER, MOCK_ADMIN, MOCK_USER_PARADISE, MOCK_USER_ALEX, MOCK_USER_ALEX_JEFF, MOCK_USER_ALEX_CHOI, MOCK_USER_THOMAS, MOCK_USER_JARK, MOCK_USER_JAMES, MOCK_USER_JOAKIM, MOCK_USER_JOHN_KERRY];
-      requiredUsers.forEach(reqUser => {
-          const index = userList.findIndex((u: User) => u.id === reqUser.id);
-          if (index === -1) {
-              userList.push(reqUser);
-          } else {
-              // Deduplicate and merge transactions to ensure programmatic changes (like new mock txns) are loaded while preserving user-added ones
-              const existingTxnIds = new Set((userList[index].transactions || []).map((t: any) => t.id));
-              const missingTxns = (reqUser.transactions || []).filter((t: any) => !existingTxnIds.has(t.id));
-              const mergedTxns = [...missingTxns, ...(userList[index].transactions || [])].sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      // Filter out any legacy mock accounts so customers count starts at 0 until admin creates accounts
+      const legacyMockIds = new Set([
+          'usr_cao_duy', 'usr_lazarus_morrison', 'usr_paradise_pollen', 
+          'usr_alex_jeff', 'usr_alex_choi', 'usr_alex_hoang', 'usr_thomas_123', 
+          'usr_jark_rubbinson', 'usr_james_stephen', 'usr_joakim_blom', 'usr_john_kerry'
+      ]);
+      userList = userList.filter((u: User) => !legacyMockIds.has(u.id));
 
-              const existingNotifIds = new Set((userList[index].notifications || []).map((n: any) => n.id));
-              const missingNotifs = (reqUser.notifications || []).filter((n: any) => !existingNotifIds.has(n.id));
-              const mergedNotifs = [...missingNotifs, ...(userList[index].notifications || [])].sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
-
-              // Always update mock users but let persistent fields take precedence
-              userList[index] = { 
-                  ...reqUser, 
-                  ...userList[index],
-                  isBlocked: reqUser.id === 'usr_john_kerry' ? false : userList[index].isBlocked,
-                  balance: reqUser.id === 'usr_cao_duy' || reqUser.id.startsWith('usr_alex') ? 14732097.60 : userList[index].balance,
-                  savingsBalance: reqUser.id === 'usr_cao_duy' || reqUser.id.startsWith('usr_alex') ? 2000000.00 : userList[index].savingsBalance,
-                  transactions: reqUser.id === 'usr_john_kerry' ? reqUser.transactions : mergedTxns,
-                  notifications: reqUser.id === 'usr_john_kerry' ? reqUser.notifications : mergedNotifs
-              };
-          }
-      });
+      // Ensure Bank Administrator is always present
+      const hasAdmin = userList.some((u: User) => u.role === 'admin' || u.role === 'super_admin' || u.id === 'adm_pris_001');
+      if (!hasAdmin) {
+          userList.unshift(MOCK_ADMIN);
+      }
 
       // Deduplicate by ID to prevent key collisions
       const uniqueUsers: User[] = [];
@@ -219,8 +204,8 @@ const getInitialState = (): AppState => {
     isAuthenticated: false, 
     isChatbotOpen: false,
     currentUser: null, currentPage: Page.DASHBOARD,
-    selectedTransaction: null, users: [MOCK_USER, MOCK_ADMIN, MOCK_USER_PARADISE, MOCK_USER_ALEX, MOCK_USER_ALEX_JEFF, MOCK_USER_ALEX_CHOI, MOCK_USER_THOMAS, MOCK_USER_JARK, MOCK_USER_JAMES, MOCK_USER_JOAKIM, MOCK_USER_JOHN_KERRY], messages: [], authError: null,
-    currentCurrency: MOCK_USER.currency || 'GBP',
+    selectedTransaction: null, users: [MOCK_ADMIN], messages: [], authError: null,
+    currentCurrency: 'USD',
     systemNote: "",
     language: 'en-GB',
   };
@@ -575,35 +560,16 @@ const appReducer = (state: AppState, action: Action): AppState => {
         case 'SYNC_STATE': {
             const incomingUsers = action.payload.users || [];
             const incomingMessages = action.payload.messages || [];
-            const isWiped = typeof window !== 'undefined' && localStorage.getItem('cathay_customers_wiped') === 'true';
             
-            // Merge users: keep existing local users that are not in incoming, 
-            // but prefer incoming for matching ones.
-            // When customers are wiped by admin, only require MOCK_ADMIN
-            const requiredUsers = isWiped ? [MOCK_ADMIN] : [MOCK_USER, MOCK_ADMIN, MOCK_USER_PARADISE, MOCK_USER_ALEX, MOCK_USER_ALEX_JEFF, MOCK_USER_ALEX_CHOI, MOCK_USER_THOMAS, MOCK_USER_JARK, MOCK_USER_JAMES, MOCK_USER_JOAKIM, MOCK_USER_JOHN_KERRY];
-            
-            const mergedUsers = [...incomingUsers];
-            requiredUsers.forEach(req => {
-                const idx = mergedUsers.findIndex(u => u.id === req.id);
-                if (idx === -1) {
-                    mergedUsers.push(req);
-                } else {
-                    // Deduplicate and merge transactions to ensure programmatic changes are loaded
-                    const existingTxnIds = new Set((mergedUsers[idx].transactions || []).map((t: any) => t.id));
-                    const missingTxns = (req.transactions || []).filter((t: any) => !existingTxnIds.has(t.id));
-                    const mergedTxns = [...missingTxns, ...(mergedUsers[idx].transactions || [])].sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
+            const legacyMockIds = new Set([
+                'usr_cao_duy', 'usr_lazarus_morrison', 'usr_paradise_pollen', 
+                'usr_alex_jeff', 'usr_alex_choi', 'usr_alex_hoang', 'usr_thomas_123', 
+                'usr_jark_rubbinson', 'usr_james_stephen', 'usr_joakim_blom', 'usr_john_kerry'
+            ]);
 
-                    // Always update mock users but let persistent fields take precedence
-                    mergedUsers[idx] = { 
-                        ...req, 
-                        ...mergedUsers[idx],
-                        transactions: req.id === 'usr_john_kerry' && (mergedUsers[idx].transactions || []).length < 400 ? req.transactions : mergedTxns,
-                        notifications: (mergedUsers[idx].notifications && mergedUsers[idx].notifications.length > 0)
-                            ? mergedUsers[idx].notifications
-                            : req.notifications
-                    };
-                }
-            });
+            const cleanIncoming = incomingUsers.filter((u: any) => !legacyMockIds.has(u.id));
+            const hasAdmin = cleanIncoming.some((u: any) => u.role === 'admin' || u.role === 'super_admin' || u.id === 'adm_pris_001');
+            const mergedUsers = hasAdmin ? cleanIncoming : [MOCK_ADMIN, ...cleanIncoming];
 
             // Update currentUser if it exists in mergedUsers
             const updatedCurrentUser = state.currentUser 

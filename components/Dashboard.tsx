@@ -8,7 +8,7 @@ import {
     CheckCircle2, Clock, Lock, RefreshCw, SlidersHorizontal, ChevronDown, ChevronUp,
     ArrowUpRight, ArrowDownLeft, Shield, LogOut, Check, Plane, MoreHorizontal,
     Globe, TrendingUp, Building2, Award, Sparkles, Coins, HelpCircle, AlertCircle, History, RotateCcw,
-    Snowflake, Ban, ShieldAlert, ShieldX
+    Snowflake, Ban, ShieldAlert, ShieldX, PauseCircle
 } from 'lucide-react';
 import { generateReceiptPDF } from '../utils/pdfGenerator';
 import CryptoAssetsSection from './CryptoAssets';
@@ -278,7 +278,7 @@ const Dashboard: React.FC = () => {
                                             <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-cyan-500"></span>
                                         </span>
                                         <h4 className="text-xs font-black uppercase text-cyan-200 tracking-wider">
-                                            Account Frozen
+                                            Your Bank Account Has Been Frozen
                                         </h4>
                                     </div>
                                     <span className="text-[9px] font-black uppercase bg-cyan-500/20 border border-cyan-400/40 text-cyan-200 px-2.5 py-0.5 rounded-full">
@@ -286,7 +286,7 @@ const Dashboard: React.FC = () => {
                                     </span>
                                 </div>
                                 <p className="text-xs text-cyan-100/90 font-medium leading-relaxed">
-                                    {user?.freezeMessage || user?.transferFreezeMessage || "This account is frozen by Bank Administration. Transfers, outgoing wires, and card payments are temporarily locked until enabled by administration."}
+                                    {user?.freezeMessage || user?.transferFreezeMessage || "Your bank account has been frozen by Bank Administration. Transfers, outgoing wires, and card payments are temporarily locked until enabled by administration."}
                                 </p>
                                 <div className="mt-2.5 pt-2 border-t border-cyan-500/20 flex items-center justify-between text-[10px] text-cyan-300/80 font-bold flex-wrap gap-2">
                                     <span>Direct Resolution Desk: supportcathaybankusa@gmail.com</span>
@@ -312,7 +312,7 @@ const Dashboard: React.FC = () => {
                                             <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500"></span>
                                         </span>
                                         <h4 className="text-xs font-black uppercase text-red-200 tracking-wider">
-                                            Account Blocked
+                                            Your Bank Account Has Been Blocked
                                         </h4>
                                     </div>
                                     <span className="text-[9px] font-black uppercase bg-red-500/20 border border-red-400/40 text-red-200 px-2.5 py-0.5 rounded-full">
@@ -320,7 +320,7 @@ const Dashboard: React.FC = () => {
                                     </span>
                                 </div>
                                 <p className="text-xs text-red-100/90 font-medium leading-relaxed">
-                                    {user?.blockMessage || "This account has been blocked by Bank Administration. Access to online banking operations is suspended until enabled by administration."}
+                                    {user?.blockMessage || "Your bank account has been blocked by Bank Administration. Access to online banking operations is suspended until enabled by administration."}
                                 </p>
                                 <div className="mt-2.5 pt-2 border-t border-red-500/20 flex items-center justify-between text-[10px] text-red-300/80 font-bold flex-wrap gap-2">
                                     <span>Security Support: supportcathaybankusa@gmail.com</span>
@@ -346,7 +346,7 @@ const Dashboard: React.FC = () => {
                                             <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500"></span>
                                         </span>
                                         <h4 className="text-xs font-black uppercase text-amber-200 tracking-wider">
-                                            Account Restricted
+                                            Your Bank Account Has Been Restricted
                                         </h4>
                                     </div>
                                     <span className="text-[9px] font-black uppercase bg-amber-500/20 border border-amber-400/40 text-amber-200 px-2.5 py-0.5 rounded-full">
@@ -354,11 +354,44 @@ const Dashboard: React.FC = () => {
                                     </span>
                                 </div>
                                 <p className="text-xs text-amber-100/90 font-medium leading-relaxed">
-                                    {user?.restrictionMessage || "This account is subject to administrative restrictions. Outgoing transfers and wires are placed on security hold until enabled by administration."}
+                                    {user?.restrictionMessage || "Your bank account has been restricted by Bank Administration. Outgoing transfers, withdrawals, and payments are placed on security hold until enabled by administration."}
                                 </p>
                                 <div className="mt-2.5 pt-2 border-t border-amber-500/20 flex items-center justify-between text-[10px] text-amber-300/80 font-bold flex-wrap gap-2">
                                     <span>Clearance Desk: supportcathaybankusa@gmail.com</span>
                                     <span className="font-mono uppercase">Ref: #RST-{user?.accountNumber || 'AUTH'}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Account Inactive Status Notice */}
+                {(user?.isInactive || user?.accountStatus === 'inactive') && (
+                    <div id="customer-inactive-banner" className="bg-gradient-to-r from-slate-900 via-gray-900 to-zinc-900 border-2 border-slate-500/80 text-white rounded-2xl p-4 shadow-xl backdrop-blur-md animate-in fade-in duration-300">
+                        <div className="flex items-start gap-3.5">
+                            <div className="w-11 h-11 rounded-xl bg-slate-700/40 border border-slate-500/50 text-slate-300 flex items-center justify-center shrink-0 shadow-inner">
+                                <PauseCircle className="w-6 h-6" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                                <div className="flex items-center justify-between gap-2 mb-1.5 flex-wrap">
+                                    <div className="flex items-center gap-2">
+                                        <span className="flex h-2.5 w-2.5 relative">
+                                            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-slate-400"></span>
+                                        </span>
+                                        <h4 className="text-xs font-black uppercase text-slate-200 tracking-wider">
+                                            Your Bank Account Is Inactive
+                                        </h4>
+                                    </div>
+                                    <span className="text-[9px] font-black uppercase bg-slate-700/50 border border-slate-500/40 text-slate-300 px-2.5 py-0.5 rounded-full">
+                                        Inactive Account
+                                    </span>
+                                </div>
+                                <p className="text-xs text-slate-300 font-medium leading-relaxed">
+                                    {user?.inactiveMessage || "Your bank account is currently inactive. Please contact administration to reactivate your banking services."}
+                                </p>
+                                <div className="mt-2.5 pt-2 border-t border-slate-700/40 flex items-center justify-between text-[10px] text-slate-400 font-bold flex-wrap gap-2">
+                                    <span>Support: supportcathaybankusa@gmail.com</span>
+                                    <span className="font-mono uppercase">Ref: #INA-{user?.accountNumber || 'AUTH'}</span>
                                 </div>
                             </div>
                         </div>
@@ -411,63 +444,6 @@ const Dashboard: React.FC = () => {
                                 )}
                             </div>
                         </div>
-                    </div>
-                )}
-
-                {/* Claim Preferred Rewards Banner */}
-                {user && !user.rewardsClaimed && (
-                    <div className="bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 text-white rounded-2xl p-4 shadow-lg flex items-center justify-between gap-3 animate-in fade-in">
-                        <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center text-white shrink-0">
-                                <Sparkles className="w-5 h-5 text-amber-300" />
-                            </div>
-                            <div>
-                                <p className="text-xs font-black uppercase tracking-wider text-amber-300">Cathay Preferred Member Reward</p>
-                                <p className="text-[11px] text-slate-100 font-semibold">Claim your welcome bonus of $500.00 cash credit into your account balance.</p>
-                            </div>
-                        </div>
-                        <button
-                            onClick={async () => {
-                                const bonus = 500;
-                                const updatedBalance = (user.balance || 0) + bonus;
-                                const bonusTx: Transaction = {
-                                    id: `tx_reward_${Date.now()}`,
-                                    date: new Date().toISOString(),
-                                    description: "Cathay Preferred Welcome Bonus Reward",
-                                    amount: bonus,
-                                    type: 'credit',
-                                    category: 'Reward',
-                                    status: 'Completed',
-                                    reference: `REW-${Math.floor(100000 + Math.random() * 900000)}`,
-                                    senderName: "Cathay Bank Rewards Desk",
-                                    senderAccount: "US-CATHAY-REWARDS-01",
-                                    receiverName: user.name,
-                                    receiverAccount: user.accountNumber,
-                                    bankName: "Cathay Bank USA",
-                                    currency: "USD",
-                                    fee: 0
-                                };
-                                const updatedUser = {
-                                    ...user,
-                                    balance: updatedBalance,
-                                    rewardsClaimed: true,
-                                    transactions: [bonusTx, ...(user.transactions || [])]
-                                };
-                                dispatch({ type: 'UPDATE_USER', payload: updatedUser });
-                                try {
-                                    await fetch('/api/users/update', {
-                                        method: 'POST',
-                                        headers: { 'Content-Type': 'application/json' },
-                                        body: JSON.stringify(updatedUser)
-                                    });
-                                } catch (e) {
-                                    console.warn(e);
-                                }
-                            }}
-                            className="bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs uppercase px-3.5 py-2 rounded-xl shrink-0 shadow-md transition"
-                        >
-                            Claim Rewards
-                        </button>
                     </div>
                 )}
 
@@ -547,7 +523,7 @@ const Dashboard: React.FC = () => {
                         <div>
                             <div className="flex items-center gap-2">
                                 <span className="w-2 h-2 rounded-full bg-purple-500" />
-                                <h4 className="text-sm font-black text-slate-900 dark:text-white group-hover:text-[#0066CC] transition">Cathay Preferred Rewards Visa</h4>
+                                <h4 className="text-sm font-black text-slate-900 dark:text-white group-hover:text-[#0066CC] transition">Cathay Preferred Platinum Visa</h4>
                             </div>
                             <p className="text-[11px] font-bold text-slate-400 tracking-wider mt-0.5">•••• 5410</p>
                         </div>

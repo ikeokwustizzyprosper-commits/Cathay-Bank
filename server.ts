@@ -205,881 +205,45 @@ async function syncDbStateFromFirestore() {
     isFirestoreSyncInProgress = true;
     try {
         // Fetch users
-        const usersSnapshot = await withFirestoreTimeout(getDocs(collection(firestore, 'users')), 2500, "Fetch users");
+        const usersSnapshot = await withFirestoreTimeout(getDocs(collection(firestore, "users")), 2500, "Fetch users");
         let users: any[] = [];
+        const legacyMockIds = new Set([
+            "usr_cao_duy", "usr_lazarus_morrison", "usr_paradise_pollen", 
+            "usr_alex_jeff", "usr_alex_choi", "usr_alex_hoang", "usr_thomas_123", 
+            "usr_jark_rubbinson", "usr_james_stephen", "usr_joakim_blom", "usr_john_kerry"
+        ]);
+
         usersSnapshot.forEach(docSnap => {
-            users.push({ id: docSnap.id, ...docSnap.data() });
-        });
-
-        // Migrate users from Lazarus to Cao Duy
-        let hasModifiedSanchez = false;
-        let migratedUsers = users.map(u => {
-            const isLazarus = u.id === 'usr_lazarus_morrison' || 
-                              (u.name && u.name.toLowerCase().includes('lazarus')) || 
-                              (u.email && u.email.toLowerCase().includes('lazarus'));
-            if (isLazarus || u.id === 'usr_cao_duy') {
-                hasModifiedSanchez = true;
-                
-                // Deduplicate and clean up notifications
-                const existingNotifs = u.notifications || [];
-                const seenNotifs = new Set();
-                const cleanNotifs = [];
-                for (const notif of existingNotifs) {
-                    if (notif && notif.id) {
-                        const isUAE = notif.message === 'notifUAE' || notif.message === 'notifTrueUAE';
-                        if (isUAE) {
-                            if (seenNotifs.has('uae')) continue;
-                            seenNotifs.add('uae');
-                        }
-                        if (!seenNotifs.has(notif.id)) {
-                            seenNotifs.add(notif.id);
-                            cleanNotifs.push(notif);
-                        }
-                    }
-                }
-                
-                // Ensure we have UAE and Syria and restriction exactly once
-                const restrictionNotif = cleanNotifs.find(n => n.id === 'notif_restriction') || {
-                    id: 'notif_restriction',
-                    title: 'securityAlert',
-                    message: 'transferRestrictedMessage',
-                    date: new Date().toISOString(),
-                    read: false,
-                    type: 'error'
-                };
-                
-                const syriaNotif = cleanNotifs.find(n => n.id === 'notif_syria') || {
-                    id: 'notif_syria',
-                    title: 'securityAlert',
-                    message: 'notifTrueSyria',
-                    date: new Date().toISOString(),
-                    read: false,
-                    type: 'warning'
-                };
-
-                const uaeNotif = cleanNotifs.find(n => n.id === 'notif_uae_real') || {
-                    id: 'notif_uae_real',
-                    title: 'securityAlert',
-                    message: 'notifTrueUAE',
-                    date: new Date().toISOString(),
-                    read: false,
-                    type: 'warning'
-                };
-
-                // Clear these from cleanNotifs to avoid duplicates and ensure perfect order
-                const otherNotifs = cleanNotifs.filter(n => n.id !== 'notif_restriction' && n.id !== 'notif_syria' && n.id !== 'notif_uae_real');
-                cleanNotifs.length = 0;
-                cleanNotifs.push(uaeNotif, syriaNotif, restrictionNotif, ...otherNotifs);
-
-                // Prepare explicit June 2026 transactions
-                let txns = (u.transactions || []).filter((t: any) => 
-                    t.id !== 'txn_sanchez_june_1' && 
-                    t.id !== 'txn_sanchez_june_2' && 
-                    t.id !== 'txn_sanchez_june_3' && 
-                    t.id !== 'txn_sanchez_june_4' && 
-                    t.id !== 'txn_sanchez_latest_airport_july6' &&
-                    t.id !== 'txn_sanchez_philippines_globalcash' &&
-                    t.id !== 'txn_sanchez_walmart_july4' &&
-                    t.id !== 'txn_sanchez_david_july2' &&
-                    t.status !== 'Failed'
-                );
-
-                txns.push({
-                    id: 'txn_sanchez_philippines_globalcash',
-                    date: '2026-07-05T18:15:00Z',
-                    description: 'International Debit to Philippines (GCash)',
-                    amount: 5009.99,
-                    type: 'debit',
-                    category: 'Family Support',
-                    status: 'Reversed',
-                    reference: '5788295780',
-                    senderName: 'Cao Duy',
-                    senderAccount: '7722994411',
-                    receiverName: 'Necel Laraga',
-                    receiverAccount: 'GCash Wallet (+63 907 817 4216)',
-                    bankName: 'GCash',
-                    country: 'Philippines',
-                    currency: 'GBP',
-                    subtitle: 'Card Payment – GlobalCash Money Transfer',
-                    fee: 9.99,
-                    totalDebited: 5009.99,
-                    amountReceived: 'PHP 395,000.00',
-                    exchangeRate: '1 GBP = PHP 79.00',
-                    paymentMethod: 'Visa Debit ••••4242',
-                    receivingNetwork: 'GCash Wallet',
-                    estimatedDelivery: '7 July 2026'
-                });
-
-                txns.push({
-                    id: 'txn_sanchez_walmart_july4',
-                    date: '2026-07-04T12:00:00Z',
-                    description: 'Transfer to Walmart',
-                    amount: 578.00,
-                    type: 'debit',
-                    category: 'Shopping',
-                    status: 'Completed',
-                    reference: 'TXN-WM-4433',
-                    senderName: 'Cao Duy',
-                    senderAccount: '7722994411',
-                    receiverName: 'Walmart',
-                    receiverAccount: 'US-WMT-88229',
-                    bankName: 'Capital One',
-                    country: 'United States',
-                    currency: 'GBP'
-                });
-
-                txns.push({
-                    id: 'txn_sanchez_david_july2',
-                    date: '2026-07-02T10:30:00Z',
-                    description: 'Transfer to David Michael',
-                    amount: 1150.00,
-                    type: 'debit',
-                    category: 'Transfer',
-                    status: 'Completed',
-                    reference: 'TXN-DM-2211',
-                    senderName: 'Cao Duy',
-                    senderAccount: '7722994411',
-                    receiverName: 'David Michael',
-                    receiverAccount: 'UK-DM-5544',
-                    bankName: 'Barclays Bank',
-                    country: 'United Kingdom',
-                    currency: 'GBP'
-                });
-
-                txns.push({
-                    id: 'txn_sanchez_june_1',
-                    date: '2026-06-28T10:15:00Z',
-                    description: 'Transfer to David Miller',
-                    amount: 350.00,
-                    type: 'debit',
-                    category: 'Transfer',
-                    status: 'Completed',
-                    reference: 'REF-202606-99',
-                    senderName: 'Cao Duy',
-                    senderAccount: '7722994411',
-                    receiverName: 'David Miller',
-                    receiverAccount: 'ACC-883311',
-                    bankName: 'Cathay Bank Core',
-                    country: 'United Kingdom',
-                    currency: 'GBP'
-                });
-
-                txns.push({
-                    id: 'txn_sanchez_june_2',
-                    date: '2026-06-30T15:40:00Z',
-                    description: 'Salary Credit from Hospital',
-                    amount: 10500.00,
-                    type: 'credit',
-                    category: 'Transfer',
-                    status: 'Completed',
-                    reference: 'REF-202606-98',
-                    senderName: 'NHS Trust',
-                    senderAccount: 'ACC-332211',
-                    receiverName: 'Cao Duy',
-                    receiverAccount: '7722994411',
-                    bankName: 'Barclays Bank',
-                    country: 'United Kingdom',
-                    currency: 'GBP'
-                });
-
-                txns.push({
-                    id: 'txn_sanchez_june_4',
-                    date: '2026-06-24T12:00:00Z',
-                    description: 'Transfer to Jark Rubbinson',
-                    amount: 1500.00,
-                    type: 'debit',
-                    category: 'Transfer',
-                    status: 'Completed',
-                    reference: 'REF-202606-94',
-                    senderName: 'Cao Duy',
-                    senderAccount: '7722994411',
-                    receiverName: 'Jark Rubbinson',
-                    receiverAccount: '2890155799',
-                    bankName: 'Cathay Bank Core',
-                    country: 'United Kingdom',
-                    currency: 'GBP'
-                });
-
-                txns.push({
-                    id: 'txn_sanchez_june_3',
-                    date: '2026-06-15T09:20:00Z',
-                    description: 'Transfer to Heathrow Airport',
-                    amount: 120.00,
-                    type: 'debit',
-                    category: 'Travel',
-                    status: 'Completed',
-                    reference: 'REF-202606-97',
-                    senderName: 'Cao Duy',
-                    senderAccount: '7722994411',
-                    receiverName: 'Heathrow Airport',
-                    receiverAccount: 'UK-AUTH-882299',
-                    bankName: 'Barclays Bank',
-                    country: 'United Kingdom',
-                    currency: 'GBP'
-                });
-
-                // Sort transactions by date descending
-                txns.sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
-
-                return {
-                    ...u,
-                    id: 'usr_cao_duy',
-                    name: 'Cao Duy',
-                    email: 'caoduy@gmail.com',
-                    password: u.password || 'caoduy@100',
-                    phone: '+44 7922 286845',
-                    accountNumber: '2890155789',
-                    avatar: u.avatar || 'https://img.freepik.com/free-vector/doctor-character-background_1270-84.jpg',
-                    pin: u.pin || '0814',
-                    isActivated: false,
-                    isBlocked: false,
-                    role: 'customer',
-                    notifications: cleanNotifs,
-                    transactions: txns,
-                    cards: [
-                        {
-                            id: 'card_1',
-                            type: 'physical',
-                            provider: 'mastercard',
-                            number: '5578 1234 5678 9740',
-                            expiry: '12/29',
-                            cvv: '918',
-                            holderName: 'Cao Duy'
-                        },
-                        {
-                            id: 'card_2',
-                            type: 'physical',
-                            provider: 'visa',
-                            number: '4532 8812 9001 4242',
-                            expiry: '08/28',
-                            cvv: '443',
-                            holderName: 'Cao Duy'
-                        }
-                    ]
-                };
-            }
-            const isAlexJeff = u.id === 'usr_alex_jeff' || 
-                               (u.name && u.name.toLowerCase() === 'alex jeff') || 
-                               (u.email && u.email.toLowerCase().includes('alexjeff9'));
-            if (isAlexJeff) {
-                const alexNotifs = [
-                    {
-                        id: 'notif_peru_alex_jeff',
-                        title: 'securityAlert',
-                        message: 'notifPeruAlex',
-                        date: '2026-07-27T09:26:05.143Z',
-                        read: false,
-                        type: 'warning'
-                    },
-                    {
-                        id: 'notif_syria_alex_jeff',
-                        title: 'securityAlert',
-                        message: 'notifSyriaAlex',
-                        date: '2026-07-27T07:56:05.143Z',
-                        read: false,
-                        type: 'warning'
-                    }
-                ];
-
-                const airportTxn = {
-                    id: 'txn_alex_latest_airport',
-                    date: '2026-07-26T14:30:00Z',
-                    description: 'Transfer to Heathrow Airport',
-                    amount: 1459,
-                    type: 'debit',
-                    category: 'Travel',
-                    status: 'Completed',
-                    reference: 'APT-6739',
-                    senderName: 'Alex Jeff',
-                    senderAccount: '2890155791',
-                    receiverName: 'Heathrow Airport Ltd',
-                    receiverAccount: 'UK-AUTH-882299',
-                    bankName: 'Barclays Bank',
-                    country: 'United Kingdom',
-                    currency: 'GBP'
-                };
-
-                const julyTxn1 = {
-                    id: 'txn_alex_july_1',
-                    date: '2026-07-20T11:15:00Z',
-                    description: 'Transfer from Ava Thomas',
-                    amount: 2850,
-                    type: 'credit',
-                    category: 'Transfer',
-                    status: 'Completed',
-                    reference: 'REF-202607-01',
-                    senderName: 'Ava Thomas',
-                    senderAccount: 'ACC-882103',
-                    receiverName: 'Alex Jeff',
-                    receiverAccount: '2890155791',
-                    bankName: 'Cathay Bank Core',
-                    country: 'United Kingdom',
-                    currency: 'GBP'
-                };
-
-                const julyTxn2 = {
-                    id: 'txn_alex_july_2',
-                    date: '2026-07-12T09:40:00Z',
-                    description: 'Transfer to Harper Baker',
-                    amount: 1200,
-                    type: 'debit',
-                    category: 'Transfer',
-                    status: 'Completed',
-                    reference: 'REF-202607-02',
-                    senderName: 'Alex Jeff',
-                    senderAccount: '2890155791',
-                    receiverName: 'Harper Baker',
-                    receiverAccount: 'ACC-991204',
-                    bankName: 'Cathay Bank Core',
-                    country: 'United Kingdom',
-                    currency: 'GBP'
-                };
-
-                const mayTxn1 = {
-                    id: 'txn_alex_may_1',
-                    date: '2026-05-18T16:20:00Z',
-                    description: 'Transfer from Oliver Green',
-                    amount: 3400,
-                    type: 'credit',
-                    category: 'Transfer',
-                    status: 'Completed',
-                    reference: 'REF-202605-01',
-                    senderName: 'Oliver Green',
-                    senderAccount: 'ACC-110293',
-                    receiverName: 'Alex Jeff',
-                    receiverAccount: '2890155791',
-                    bankName: 'Cathay Bank Core',
-                    country: 'United Kingdom',
-                    currency: 'GBP'
-                };
-
-                let alexTxns = (u.transactions || []).filter((t: any) => 
-                    t.id !== airportTxn.id &&
-                    t.id !== julyTxn1.id &&
-                    t.id !== julyTxn2.id &&
-                    t.id !== mayTxn1.id &&
-                    !(t.receiverName && t.receiverName.toLowerCase().includes('john')) &&
-                    !(t.senderName && t.senderName.toLowerCase().includes('john')) &&
-                    !(t.description && t.description.toLowerCase().includes('john')) &&
-                    !(t.id && t.id.startsWith('tx_debit_failed')) &&
-                    new Date(t.date).getTime() < new Date('2026-07-26T14:30:00Z').getTime()
-                );
-
-                const finalAlexTxns = [airportTxn, julyTxn1, julyTxn2, mayTxn1, ...alexTxns];
-                finalAlexTxns.sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
-
-                const updatedAlex = {
-                    ...u,
-                    id: 'usr_alex_jeff',
-                    name: 'Alex Jeff',
-                    notifications: alexNotifs,
-                    transactions: finalAlexTxns
-                };
-
-                if (firestore && !isFirestoreQuotaExhausted) {
-                    setDoc(doc(firestore, 'users', 'usr_alex_jeff'), updatedAlex, { merge: true }).catch(() => {});
-                }
-
-                return updatedAlex;
-            }
-            return u;
-        });
-
-        // If there were any duplicates or if Lazarus was deleted
-        const sanchezUserIdx = migratedUsers.findIndex(u => u.id === 'usr_cao_duy');
-        if (sanchezUserIdx !== -1) {
-            migratedUsers[sanchezUserIdx].balance = 14732097.60;
-        }
-        if (sanchezUserIdx === -1) {
-            const originalLazarus = users.find(u => 
-                u.id === 'usr_lazarus_morrison' || 
-                (u.name && u.name.toLowerCase().includes('lazarus')) || 
-                (u.email && u.email.toLowerCase().includes('lazarus'))
-            );
-            const fallbackAvatar = originalLazarus?.avatar || 'https://img.freepik.com/free-vector/doctor-character-background_1270-84.jpg';
-            const fallbackSanchez = {
-                id: 'usr_cao_duy',
-                name: 'Cao Duy',
-                email: 'caoduy@gmail.com',
-                password: 'caoduy@100',
-                phone: '+44 7922 286845',
-                accountNumber: '2890155789',
-                bvn: '998-22-1133',
-                idCardNumber: 'USA-NY-7722',
-                avatar: fallbackAvatar, 
-                balance: 14732097.60,
-                savingsBalance: 2000000.00,
-                loanBalance: 0.00,
-                 notifications: [
-                    {
-                        id: 'notif_uae_real',
-                        title: 'securityAlert',
-                        message: 'notifTrueUAE',
-                        date: new Date().toISOString(),
-                        read: false,
-                        type: 'warning'
-                    },
-                    {
-                        id: 'notif_syria',
-                        title: 'securityAlert',
-                        message: 'notifTrueSyria',
-                        date: new Date().toISOString(),
-                        read: false,
-                        type: 'warning'
-                    },
-                    {
-                        id: 'notif_restriction',
-                        title: 'securityAlert',
-                        message: 'transferRestrictedMessage',
-                        date: new Date().toISOString(),
-                        read: false,
-                        type: 'error'
-                    }
-                ],
-                pin: '0814',
-                currency: 'GBP',
-                role: 'customer',
-                isActivated: false,
-                isBlocked: false,
-                cards: [
-                    {
-                        id: 'card_1',
-                        type: 'physical',
-                        provider: 'mastercard',
-                        number: '5578 1234 5678 9740',
-                        expiry: '12/29',
-                        cvv: '918',
-                        holderName: 'Cao Duy'
-                    },
-                    {
-                        id: 'card_2',
-                        type: 'physical',
-                        provider: 'visa',
-                        number: '4532 8812 9001 4242',
-                        expiry: '08/28',
-                        cvv: '443',
-                        holderName: 'Cao Duy'
-                    }
-                ],
-                transactions: [
-                    {
-                        id: 'txn_necel_laraga_failed',
-                        date: '2026-07-08T22:06:00Z',
-                        description: 'International Transfer to Necel Laraga',
-                        amount: 20000.00,
-                        type: 'debit',
-                        category: 'Transfer',
-                        status: 'Failed',
-                        reference: 'TXN-NL-998844',
-                        senderName: 'Cao Duy',
-                        senderAccount: '2890155789',
-                        receiverName: 'Necel Laraga',
-                        receiverAccount: '+63 907 817 4216',
-                        bankName: 'GCash',
-                        country: 'Philippines',
-                        currency: 'GBP',
-                        paymentMethod: 'GCash',
-                        failureReason: 'This international transfer could not be completed. No successful transfer has been confirmed. Please review the transaction details or contact support for assistance.'
-                    },
-                    {
-                        id: 'txn_hilton_kyiv',
-                        date: '2026-07-08T17:37:00Z',
-                        description: 'International Transfer to Hilton Kyiv hotel',
-                        amount: 1500.00,
-                        type: 'debit',
-                        category: 'Travel',
-                        status: 'Failed',
-                        reference: 'TXN-98274510',
-                        senderName: 'Cao Duy',
-                        senderAccount: '2890155789',
-                        receiverName: 'Hilton Kyiv hotel',
-                        receiverAccount: '0198805247',
-                        bankName: 'Ukrsibbank',
-                        country: 'Ukraine',
-                        currency: 'GBP',
-                        fee: 15.00,
-                        totalDebited: 1515.00,
-                        amountReceived: 'UAH 77,250.00',
-                        exchangeRate: '1 GBP = 51.50 UAH',
-                        failureReason: 'This transaction could not be completed because your account is temporarily restricted due to security & compliance verification requirements. Please contact Customer Support or your Bank Agent.'
-                    },
-                    {
-                        id: 'txn_sanchez_philippines_globalcash',
-                        date: '2026-07-05T18:15:00Z',
-                        description: 'International Debit to Philippines (GCash)',
-                        amount: 5009.99,
-                        type: 'debit',
-                        category: 'Family Support',
-                        status: 'Reversed',
-                        reference: '5788295780',
-                        senderName: 'Cao Duy',
-                        senderAccount: '7722994411',
-                        receiverName: 'Necel Laraga',
-                        receiverAccount: 'GCash Wallet (+63 907 817 4216)',
-                        bankName: 'GCash',
-                        country: 'Philippines',
-                        currency: 'GBP',
-                        subtitle: 'Card Payment – GlobalCash Money Transfer',
-                        fee: 9.99,
-                        totalDebited: 5009.99,
-                        amountReceived: 'PHP 395,000.00',
-                        exchangeRate: '1 GBP = PHP 79.00',
-                        paymentMethod: 'Visa Debit ••••4242',
-                        receivingNetwork: 'GCash Wallet',
-                        estimatedDelivery: '7 July 2026'
-                    },
-                    {
-                        id: 'txn_sanchez_walmart_july4',
-                        date: '2026-07-04T12:00:00Z',
-                        description: 'Transfer to Walmart',
-                        amount: 578.00,
-                        type: 'debit',
-                        category: 'Shopping',
-                        status: 'Completed',
-                        reference: 'TXN-WM-4433',
-                        senderName: 'Cao Duy',
-                        senderAccount: '7722994411',
-                        receiverName: 'Walmart',
-                        receiverAccount: 'US-WMT-88229',
-                        bankName: 'Capital One',
-                        country: 'United States',
-                        currency: 'GBP'
-                    },
-                    {
-                        id: 'txn_sanchez_david_july2',
-                        date: '2026-07-02T10:30:00Z',
-                        description: 'Transfer to David Michael',
-                        amount: 1150.00,
-                        type: 'debit',
-                        category: 'Transfer',
-                        status: 'Completed',
-                        reference: 'TXN-DM-2211',
-                        senderName: 'Cao Duy',
-                        senderAccount: '7722994411',
-                        receiverName: 'David Michael',
-                        receiverAccount: 'UK-DM-5544',
-                        bankName: 'Barclays Bank',
-                        country: 'United Kingdom',
-                        currency: 'GBP'
-                    },
-                    {
-                        id: 'txn_sanchez_june_1',
-                        date: '2026-06-28T10:15:00Z',
-                        description: 'Transfer to David Miller',
-                        amount: 350.00,
-                        type: 'debit',
-                        category: 'Transfer',
-                        status: 'Completed',
-                        reference: 'REF-202606-99',
-                        senderName: 'Cao Duy',
-                        senderAccount: '7722994411',
-                        receiverName: 'David Miller',
-                        receiverAccount: 'ACC-883311',
-                        bankName: 'Cathay Bank Core',
-                        country: 'United Kingdom',
-                        currency: 'GBP'
-                    },
-                    {
-                        id: 'txn_sanchez_june_2',
-                        date: '2026-06-30T15:40:00Z',
-                        description: 'Salary Credit from Hospital',
-                        amount: 10500.00,
-                        type: 'credit',
-                        category: 'Transfer',
-                        status: 'Completed',
-                        reference: 'REF-202606-98',
-                        senderName: 'NHS Trust',
-                        senderAccount: 'ACC-332211',
-                        receiverName: 'Cao Duy',
-                        receiverAccount: '7722994411',
-                        bankName: 'Barclays Bank',
-                        country: 'United Kingdom',
-                        currency: 'GBP'
-                    },
-                    {
-                        id: 'txn_sanchez_june_4',
-                        date: '2026-06-24T12:00:00Z',
-                        description: 'Transfer to Jark Rubbinson',
-                        amount: 1500.00,
-                        type: 'debit',
-                        category: 'Transfer',
-                        status: 'Completed',
-                        reference: 'REF-202606-94',
-                        senderName: 'Cao Duy',
-                        senderAccount: '7722994411',
-                        receiverName: 'Jark Rubbinson',
-                        receiverAccount: '2890155799',
-                        bankName: 'Cathay Bank Core',
-                        country: 'United Kingdom',
-                        currency: 'GBP'
-                    },
-                    {
-                        id: 'txn_sanchez_june_3',
-                        date: '2026-06-15T09:20:00Z',
-                        description: 'Transfer to Heathrow Airport',
-                        amount: 120.00,
-                        type: 'debit',
-                        category: 'Travel',
-                        status: 'Completed',
-                        reference: 'REF-202606-97',
-                        senderName: 'Cao Duy',
-                        senderAccount: '7722994411',
-                        receiverName: 'Heathrow Airport',
-                        receiverAccount: 'UK-AUTH-882299',
-                        bankName: 'Barclays Bank',
-                        country: 'United Kingdom',
-                        currency: 'GBP'
-                    }
-                ]
-            };
-            migratedUsers.push(fallbackSanchez);
-            try {
-                await setDoc(doc(firestore, 'users', 'usr_cao_duy'), fallbackSanchez);
-            } catch (err) {
-                console.warn("Could not write migrated fallback Sanchez to Firestore (falling back to memory):", err);
-            }
-        } else if (hasModifiedSanchez) {
-            try {
-                await setDoc(doc(firestore, 'users', 'usr_cao_duy'), migratedUsers[sanchezUserIdx]);
-            } catch (err) {
-                console.warn("Could not write migrated Sanchez to Firestore (falling back to memory):", err);
-            }
-        }
-
-        // Clean up any remaining document with ID 'usr_lazarus_morrison' in Firestore
-        try {
-            await deleteDoc(doc(firestore, 'users', 'usr_lazarus_morrison'));
-        } catch (e) {
-            // ignore if already deleted or doesn't exist
-        }
-
-        // Deduplicate the list by id to make sure there are no duplicate usr_cao_duy or other users
-        const uniqueUsersMap = new Map();
-        migratedUsers.forEach(u => {
-            if (u && u.id) {
-                uniqueUsersMap.set(u.id, u);
+            if (!legacyMockIds.has(docSnap.id)) {
+                users.push({ id: docSnap.id, ...docSnap.data() });
+            } else {
+                deleteDoc(doc(firestore, "users", docSnap.id)).catch(() => {});
             }
         });
 
-        if (!uniqueUsersMap.has('usr_john_kerry')) {
-            const fallbackJohnKerry = {
-                id: 'usr_john_kerry',
-                name: 'James Michael Lay',
-                email: 'jamesmichaellay000@gmail.com',
-                password: 'Jameslay010',
-                phone: '+1 (617) 555-0198',
-                accountNumber: '2890155800',
-                bvn: '998-10-0790',
-                idCardNumber: 'USA-DC-2020',
-                avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=400&q=80',
-                balance: 14732097.60,
-                savingsBalance: 500000.00,
-                loanBalance: 0.00,
-                pin: '0814',
-                currency: 'USD',
-                role: 'customer',
-                isActivated: false,
-                isBlocked: false,
-                notifications: [
-                    {
-                        id: 'notif_jk_2025_sec',
-                        title: 'Security Alert: New Device Login (USA)',
-                        message: 'We noticed an executive banking device login from USA 🇺🇸 (29291 BIA HWY 1, St Francis, South Dakota 57572).',
-                        date: '2025-11-14T14:22:00.000Z',
-                        read: false,
-                        type: 'info'
-                    },
-                    {
-                        id: 'notif_jk_2025_login',
-                        title: 'Login Noticed (USA)',
-                        message: 'We noticed a device trying to login from USA 🇺🇸 (29291 BIA HWY 1, St Francis, South Dakota 57572).',
-                        date: '2025-06-20T09:15:00.000Z',
-                        read: true,
-                        type: 'info'
-                    },
-                    {
-                        id: 'notif_jk_2024_afg_wire',
-                        title: 'Login Noticed (USA)',
-                        message: 'We noticed a device trying to login from USA 🇺🇸 (29291 BIA HWY 1, St Francis, South Dakota 57572).',
-                        date: '2024-10-08T16:45:00.000Z',
-                        read: true,
-                        type: 'info'
-                    },
-                    {
-                        id: 'notif_jk_2024_usa_device',
-                        title: 'Trusted Device Added (USA)',
-                        message: 'New device registered as trusted banking device from USA 🇺🇸.',
-                        date: '2024-03-15T11:04:00.000Z',
-                        read: true,
-                        type: 'info'
-                    },
-                    {
-                        id: 'notif_jk_2023_afg_threat',
-                        title: 'Security Notice (USA)',
-                        message: 'We noticed a device trying to login from USA 🇺🇸 (29291 BIA HWY 1, St Francis, South Dakota 57572).',
-                        date: '2023-09-12T08:30:00.000Z',
-                        read: true,
-                        type: 'info'
-                    },
-                    {
-                        id: 'notif_jk_2023_usa_dividend',
-                        title: 'Treasury Dividend Received (USA)',
-                        message: 'Executive dividend credit of $160,000.00 posted from USA 🇺🇸.',
-                        date: '2023-01-25T15:20:00.000Z',
-                        read: true,
-                        type: 'success'
-                    },
-                    {
-                        id: 'notif_jk_2022_usa_pin',
-                        title: 'Security PIN Updated (USA)',
-                        message: 'Transaction authorization PIN successfully updated from USA 🇺🇸.',
-                        date: '2022-11-04T13:10:00.000Z',
-                        read: true,
-                        type: 'info'
-                    },
-                    {
-                        id: 'notif_jk_2022_usa_estate',
-                        title: 'Property Wire Sent (USA)',
-                        message: 'Outgoing transfer of $85,000.00 to Beacon Hill Property Management, USA 🇺🇸 completed.',
-                        date: '2022-04-18T10:50:00.000Z',
-                        read: true,
-                        type: 'success'
-                    },
-                    {
-                        id: 'notif_jk_2021_afg_alert',
-                        title: 'Login Noticed (USA)',
-                        message: 'We noticed a device trying to login from USA 🇺🇸 (29291 BIA HWY 1, St Francis, South Dakota 57572).',
-                        date: '2021-08-30T19:05:00.000Z',
-                        read: true,
-                        type: 'info'
-                    },
-                    {
-                        id: 'notif_jk_2021_usa_endowment',
-                        title: 'Philanthropic Wire Approved (USA)',
-                        message: 'Endowment Wire of $500,000.00 to Harvard Kennedy School, USA 🇺🇸 authorized.',
-                        date: '2021-02-14T14:00:00.000Z',
-                        read: true,
-                        type: 'success'
-                    },
-                    {
-                        id: 'notif_jk_2020_afg_hold',
-                        title: 'Security Verification Cleared (USA)',
-                        message: 'Executive identity verification completed successfully in Chicago, IL, USA 🇺🇸.',
-                        date: '2020-10-19T12:40:00.000Z',
-                        read: true,
-                        type: 'info'
-                    },
-                    {
-                        id: 'notif_jk_2020_usa_kyc',
-                        title: 'KYC Level 3 Verification (USA)',
-                        message: 'Annual Level 3 Executive KYC verification renewed successfully in USA 🇺🇸.',
-                        date: '2020-05-11T09:00:00.000Z',
-                        read: true,
-                        type: 'success'
-                    },
-                    {
-                        id: 'notif_jk_2019_afg_embassy',
-                        title: 'Login Noticed (USA)',
-                        message: 'We noticed a device trying to login from USA 🇺🇸 (29291 BIA HWY 1, St Francis, South Dakota 57572).',
-                        date: '2019-12-05T17:15:00.000Z',
-                        read: true,
-                        type: 'info'
-                    },
-                    {
-                        id: 'notif_jk_2019_usa_welcome',
-                        title: 'Vault Onboarding & Account Created (USA)',
-                        message: 'Welcome to Cathay Bank Private Vault. Account setup completed in USA 🇺🇸.',
-                        date: '2019-06-18T08:00:00.000Z',
-                        read: true,
-                        type: 'success'
-                    }
-                ]
-            };
-            uniqueUsersMap.set('usr_john_kerry', fallbackJohnKerry);
-            if (firestore && !isFirestoreQuotaExhausted) {
-                setDoc(doc(firestore, 'users', 'usr_john_kerry'), fallbackJohnKerry).catch(() => {});
-            }
-        } else {
-            // Ensure usr_john_kerry in Firestore/map has updated name and credentials
-            const existingCao = uniqueUsersMap.get('usr_cao_duy');
-            if (existingCao) {
-                existingCao.balance = 14732097.60;
-                uniqueUsersMap.set('usr_cao_duy', existingCao);
-            }
-            const existing = uniqueUsersMap.get('usr_john_kerry');
-            if (existing) {
-                existing.name = 'James Michael Lay';
-                existing.email = 'jamesmichaellay000@gmail.com';
-                existing.password = 'Jameslay010';
-                existing.phone = '+1 (617) 555-0198';
-                existing.balance = 14732097.60;
-                existing.isActivated = false;
-                uniqueUsersMap.set('usr_john_kerry', existing);
-                // Persist updated email to Firestore
-                setDoc(doc(firestore, 'users', 'usr_john_kerry'), existing, { merge: true }).catch(() => {});
-            }
+        // Always ensure the Bank Administrator is present
+        const hasAdmin = users.some(u => u.role === "admin" || u.role === "super_admin" || u.id === "adm_pris_001");
+        const adminFromDbState = (dbState.users || []).find(u => u.role === "admin" || u.role === "super_admin" || u.id === "adm_pris_001");
+        if (!hasAdmin && adminFromDbState) {
+            users.unshift(adminFromDbState);
         }
-
-        users = Array.from(uniqueUsersMap.values());
 
         // Fetch messages
-        const messagesSnapshot = await withFirestoreTimeout(getDocs(collection(firestore, 'messages')), 2500, "Fetch messages");
+        const messagesSnapshot = await withFirestoreTimeout(getDocs(collection(firestore, "messages")), 2500, "Fetch messages");
         const messages: any[] = [];
         messagesSnapshot.forEach(docSnap => {
             messages.push({ id: docSnap.id, ...docSnap.data() });
         });
-        
-        // Sort messages by timestamp
-        messages.sort((a, b) => {
-            const timeA = new Date(a.timestamp || 0).getTime();
-            const timeB = new Date(b.timestamp || 0).getTime();
-            return timeA - timeB;
-        });
+        messages.sort((a, b) => new Date(a.timestamp || 0).getTime() - new Date(b.timestamp || 0).getTime());
 
         // Fetch system config
         let systemNote = "";
         try {
-            const configDoc = await withFirestoreTimeout(getDoc(doc(firestore, 'system', 'config')), 2000, "Fetch system config");
+            const configDoc = await withFirestoreTimeout(getDoc(doc(firestore, "system", "config")), 2000, "Fetch system config");
             if (configDoc.exists()) {
                 systemNote = configDoc.data().systemNote || "";
             }
-        } catch (e) {
-            // Note: config fetch error logged gracefully
-        }
-
-        // If firestore is completely empty, seed it with fallback users/messages
-        if (users.length === 0) {
-            console.log("Firestore is empty. Seeding with fallback data...");
-            const seedUsers = dbState.users && dbState.users.length > 0 ? dbState.users : [];
-            for (const u of seedUsers) {
-                try {
-                    await setDoc(doc(firestore, 'users', u.id), u);
-                } catch (err) {
-                    console.warn(`Could not seed user ${u.id} to Firestore:`, err);
-                }
-                users.push(u);
-            }
-
-            const seedMessages = dbState.messages && dbState.messages.length > 0 ? dbState.messages : [];
-            for (const m of seedMessages) {
-                const mId = m.id || `msg_${Math.random().toString(36).substring(2, 9)}`;
-                try {
-                    await setDoc(doc(firestore, 'messages', mId), m);
-                } catch (err) {
-                    console.warn(`Could not seed message ${mId} to Firestore:`, err);
-                }
-                messages.push({ ...m, id: mId });
-            }
-
-            if (dbState.systemNote) {
-                try {
-                    await setDoc(doc(firestore, 'system', 'config'), { systemNote: dbState.systemNote });
-                } catch (err) {
-                    console.warn(`Could not seed system config to Firestore:`, err);
-                }
-                systemNote = dbState.systemNote;
-            }
-        }
+        } catch (e) {}
 
         if (users.length > 0) {
             dbState.users = users;
@@ -2552,12 +1716,14 @@ app.post("/api/admin/update-user-status", async (req, res) => {
             isBlocked, 
             isFrozen, 
             isRestricted, 
+            isInactive,
             accountStatus, 
             role, 
             transferFreezeMessage, 
             freezeMessage, 
             blockMessage, 
             restrictionMessage,
+            inactiveMessage,
             statusReason,
             isActivated,
             password,
@@ -2619,26 +1785,332 @@ app.post("/api/admin/update-user-status", async (req, res) => {
             user.isRestricted = true;
             user.isBlocked = false;
             user.isFrozen = false;
+            user.isInactive = false;
+            user.accountStatus = 'restricted';
+        } else if (accountStatus === 'inactive') {
+            user.isInactive = true;
+            user.isRestricted = false;
+            user.isBlocked = false;
+            user.isFrozen = false;
+            user.accountStatus = 'inactive';
+            if (inactiveMessage) user.inactiveMessage = inactiveMessage;
         }
 
         dbState.users[userIndex] = user;
         await saveUserToFirestore(user);
 
-        const newStatus = user.accountStatus || (user.isBlocked ? 'blocked' : user.isFrozen ? 'frozen' : user.isRestricted ? 'restricted' : 'active');
+        const newStatus = user.accountStatus || (user.isBlocked ? 'blocked' : user.isFrozen ? 'frozen' : user.isRestricted ? 'restricted' : user.isInactive ? 'inactive' : 'active');
 
-        await recordAuditLog({
+        const auditRecord = await recordAuditLog({
             adminId: adminId || 'admin_super',
             adminEmail: adminEmail || 'admin@cathaybankusa.com',
             action: 'UPDATE_USER_STATUS',
             targetUser: `${user.name} (${user.accountNumber})`,
             previousValue: `Status: ${prevStatus}, Role: ${user.role}`,
             newValue: `Status: ${newStatus}, Role: ${role || user.role}`,
-            reason: freezeMessage || blockMessage || restrictionMessage || transferFreezeMessage || statusReason || 'Administrative status update'
+            reason: freezeMessage || blockMessage || restrictionMessage || transferFreezeMessage || inactiveMessage || statusReason || 'Administrative status update'
         }, firestore, isFirestoreQuotaExhausted, dbState, saveLocalState);
 
-        res.json({ success: true, user });
+        res.json({ success: true, user, auditRecord });
     } catch (err: any) {
         res.status(500).json({ error: "Failed to update user status: " + err.message });
+    }
+});
+
+// Store pending 6-digit email verifications
+const pendingEmailVerifications = new Map<string, { code: string; expiresAt: number; verified: boolean }>();
+
+// Send verification code to Gmail before creating account
+app.post("/api/admin/send-verification-code", async (req, res) => {
+    try {
+        const { email } = req.body;
+        if (!email || !email.includes('@')) {
+            return res.status(400).json({ error: "A valid email address is required." });
+        }
+
+        const cleanEmail = email.trim().toLowerCase();
+        const code = Math.floor(100000 + Math.random() * 900000).toString();
+        pendingEmailVerifications.set(cleanEmail, {
+            code,
+            expiresAt: Date.now() + 15 * 60 * 1000,
+            verified: false
+        });
+
+        const verificationHtml = `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><title>Cathay Bank USA Authorization Code</title></head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f8fafc; padding: 24px; color: #1e293b;">
+  <div style="max-width: 540px; margin: 0 auto; background: #ffffff; border-radius: 16px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+    <div style="background-color: #0A2540; padding: 14px 24px; text-align: center;">
+      <span style="font-size: 11px; font-weight: 800; color: #38bdf8; letter-spacing: 0.12em; text-transform: uppercase;">✦ CATHAY BANK USA • OFFICIAL AUTHORIZATION DESK ✦</span>
+    </div>
+    <div style="padding: 28px 32px; text-align: center;">
+      <h2 style="margin: 0 0 8px 0; color: #0f172a; font-size: 20px; font-weight: 800;">Account Creation Authorization Code</h2>
+      <p style="margin: 0 0 24px 0; font-size: 13px; color: #475569; line-height: 1.6;">
+        A request has been initiated by Bank Administration to provision and bind an official banking account to this email address (<strong style="color: #0f172a;">${cleanEmail}</strong>).
+      </p>
+      <div style="background: #f1f5f9; border-radius: 12px; padding: 20px; margin: 0 auto 24px auto; border: 2px dashed #0284c7; max-width: 300px;">
+        <span style="font-size: 11px; text-transform: uppercase; color: #64748b; font-weight: 700; letter-spacing: 1px; display: block; margin-bottom: 8px;">6-Digit Security Code</span>
+        <span style="font-size: 32px; font-weight: 900; letter-spacing: 8px; color: #0A2540; font-family: monospace;">${code}</span>
+      </div>
+      <p style="font-size: 12px; color: #64748b; margin: 0 0 16px 0;">
+        Enter this verification code in the administrative console to confirm and authorize deployment. Valid for 15 minutes.
+      </p>
+      <p style="font-size: 11px; color: #94a3b8; margin: 0; border-top: 1px solid #f1f5f9; padding-top: 16px;">
+        Cathay Bank USA Priority Support: <a href="mailto:supportcathaybankusa@gmail.com" style="color: #0284c7;">supportcathaybankusa@gmail.com</a>
+      </p>
+    </div>
+  </div>
+</body>
+</html>`;
+
+        await sendTransactionalEmail({
+            recipient: cleanEmail,
+            emailType: 'Verification Code',
+            subject: `[Cathay Bank USA] Account Creation Authorization Code: ${code}`,
+            bodyHtml: verificationHtml
+        }, firestore, isFirestoreQuotaExhausted, dbState, saveLocalState);
+
+        res.json({
+            success: true,
+            message: `Verification code sent to ${cleanEmail}. Please check the inbox.`
+        });
+    } catch (err: any) {
+        console.error("Error sending verification code:", err);
+        res.status(500).json({ error: "Failed to dispatch verification code: " + err.message });
+    }
+});
+
+// Verify 6-digit code
+app.post("/api/admin/verify-code", (req, res) => {
+    try {
+        const { email, code } = req.body;
+        if (!email || !code) {
+            return res.status(400).json({ error: "Email and verification code are required." });
+        }
+
+        const cleanEmail = email.trim().toLowerCase();
+        const cleanCode = code.trim();
+        const record = pendingEmailVerifications.get(cleanEmail);
+
+        if (!record) {
+            return res.status(400).json({ error: "No verification code was sent to this email or it has expired. Click 'Send Code' first." });
+        }
+
+        if (Date.now() > record.expiresAt) {
+            pendingEmailVerifications.delete(cleanEmail);
+            return res.status(400).json({ error: "Verification code has expired. Please request a new code." });
+        }
+
+        if (record.code !== cleanCode) {
+            return res.status(400).json({ error: "Incorrect verification code. Please check your Gmail inbox and try again." });
+        }
+
+        record.verified = true;
+        pendingEmailVerifications.set(cleanEmail, record);
+
+        res.json({
+            success: true,
+            message: "Email successfully verified and authorized for account creation."
+        });
+    } catch (err: any) {
+        res.status(500).json({ error: "Verification error: " + err.message });
+    }
+});
+
+// Admin Support Inbox - Get all inbound inquiries
+app.get("/api/admin/support-inbox", (req, res) => {
+    try {
+        if (!dbState.supportInbox) {
+            dbState.supportInbox = [
+                {
+                    id: 'inbox-101',
+                    fromName: 'David Sterling',
+                    fromEmail: 'd.sterling@premierfirm.com',
+                    subject: 'Commercial Wire Confirmation Request - Reference #W-882109',
+                    date: new Date().toISOString(),
+                    isRead: false,
+                    isReplied: false,
+                    recipient: 'supportcathaybankusa@gmail.com',
+                    message: 'Dear Cathay Bank Support,\n\nWe dispatched an outgoing commercial wire transfer for $25,000 USD to Sterling Holdings. Could you please confirm if the beneficiary credit has cleared or provide the federal reference number?\n\nSincerely,\nDavid Sterling\nDirector of Operations'
+                },
+                {
+                    id: 'inbox-102',
+                    fromName: 'Alice Morgan',
+                    fromEmail: 'alice.m@morganpartners.org',
+                    subject: 'Proof of Address Verification Update',
+                    date: new Date(Date.now() - 3600000 * 5).toISOString(),
+                    isRead: false,
+                    isReplied: false,
+                    recipient: 'support@cathaybankusa.com',
+                    message: 'Hello Support Team,\n\nI have submitted my updated residential address documentation to supportcathaybankusa@gmail.com. Please confirm receipt and account status verification.\n\nThank you,\nAlice Morgan'
+                }
+            ];
+            saveLocalState();
+        }
+        res.json({ success: true, messages: dbState.supportInbox });
+    } catch (err: any) {
+        res.status(500).json({ error: "Failed to load support inbox: " + err.message });
+    }
+});
+
+// Admin Support Inbox - Send official reply to customer
+app.post("/api/admin/support-inbox/reply", async (req, res) => {
+    try {
+        const { messageId, replyText, recipientEmail, subject } = req.body;
+        if (!messageId || !replyText || !recipientEmail) {
+            return res.status(400).json({ error: "messageId, replyText, and recipientEmail are required." });
+        }
+
+        if (!dbState.supportInbox) {
+            dbState.supportInbox = [];
+        }
+
+        const msgIndex = dbState.supportInbox.findIndex((m: any) => m.id === messageId);
+        if (msgIndex !== -1) {
+            dbState.supportInbox[msgIndex].isReplied = true;
+            dbState.supportInbox[msgIndex].isRead = true;
+            dbState.supportInbox[msgIndex].replyText = replyText;
+            dbState.supportInbox[msgIndex].repliedAt = new Date().toISOString();
+        }
+
+        saveLocalState();
+
+        const replyHtml = `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><title>Cathay Bank USA Support Response</title></head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f8fafc; padding: 24px; color: #1e293b;">
+  <div style="max-width: 580px; margin: 0 auto; background: #ffffff; border-radius: 16px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+    <div style="background-color: #0A2540; padding: 14px 24px;">
+      <span style="font-size: 11px; font-weight: 800; color: #38bdf8; letter-spacing: 0.12em; text-transform: uppercase;">✦ CATHAY BANK USA • OFFICIAL SUPPORT DESK ✦</span>
+    </div>
+    <div style="padding: 28px 32px;">
+      <p style="font-size: 11px; color: #64748b; margin-top: 0; margin-bottom: 12px; text-transform: uppercase; font-weight: 700;">
+        From: Cathay Bank Support &lt;supportcathaybankusa@gmail.com&gt;
+      </p>
+      <h3 style="margin: 0 0 16px 0; color: #0f172a; font-size: 18px; font-weight: 800;">Re: ${subject || 'Customer Support Inquiry'}</h3>
+      <div style="background: #f8fafc; border-left: 4px solid #0284c7; padding: 16px 20px; border-radius: 8px; margin-bottom: 24px; font-size: 14px; line-height: 1.7; color: #334155; white-space: pre-line;">
+${replyText}
+      </div>
+      <p style="font-size: 12px; color: #64748b; line-height: 1.6; margin-bottom: 0;">
+        If you have further questions or require immediate wire assistance, you can reply directly to this email (<a href="mailto:supportcathaybankusa@gmail.com" style="color: #0284c7; font-weight: 600;">supportcathaybankusa@gmail.com</a>) or contact our 24/7 client desk.
+      </p>
+    </div>
+  </div>
+</body>
+</html>`;
+
+        await sendTransactionalEmail({
+            recipient: recipientEmail,
+            emailType: 'Support Reply',
+            subject: `Re: ${subject || 'Cathay Bank USA Support Ticket'}`,
+            bodyHtml: replyHtml
+        }, firestore, isFirestoreQuotaExhausted, dbState, saveLocalState);
+
+        await recordAuditLog({
+            adminId: 'admin_super',
+            adminEmail: 'admin@cathaybankusa.com',
+            action: 'DISPATCH_SUPPORT_REPLY',
+            targetUser: recipientEmail,
+            previousValue: 'Pending Inquiry',
+            newValue: 'Replied & Closed',
+            reason: `Dispatched official email response via supportcathaybankusa@gmail.com`
+        }, firestore, isFirestoreQuotaExhausted, dbState, saveLocalState);
+
+        res.json({ success: true, message: "Official support response dispatched successfully." });
+    } catch (err: any) {
+        console.error("Support reply error:", err);
+        res.status(500).json({ error: "Failed to dispatch reply: " + err.message });
+    }
+});
+
+// Public / Customer Support Submit Inquiry (Lands in Admin Support Inbox)
+app.post("/api/support/submit-inquiry", async (req, res) => {
+    try {
+        const { fromName, fromEmail, subject, message, customerId } = req.body;
+        if (!fromEmail || !message) {
+            return res.status(400).json({ error: "Email and message are required." });
+        }
+
+        if (!dbState.supportInbox) {
+            dbState.supportInbox = [];
+        }
+
+        const newInquiry = {
+            id: `inbox_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+            fromName: (fromName || 'Customer').trim(),
+            fromEmail: fromEmail.trim().toLowerCase(),
+            subject: (subject || 'General Inbound Banking Inquiry').trim(),
+            message: message.trim(),
+            customerId: customerId || null,
+            date: new Date().toISOString(),
+            isRead: false,
+            isReplied: false,
+            recipient: 'supportcathaybankusa@gmail.com'
+        };
+
+        dbState.supportInbox.unshift(newInquiry);
+        saveLocalState();
+
+        // Dispatch alert email to Admin at supportcathaybankusa@gmail.com
+        const adminAlertHtml = `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><title>Inbound Customer Response Received</title></head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f8fafc; padding: 24px; color: #1e293b;">
+  <div style="max-width: 580px; margin: 0 auto; background: #ffffff; border-radius: 16px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+    <div style="background-color: #0A2540; padding: 16px 24px;">
+      <span style="font-size: 11px; font-weight: 800; color: #38bdf8; letter-spacing: 0.12em; text-transform: uppercase;">✦ NEW INBOUND CUSTOMER RESPONSE • ADMIN ALERT ✦</span>
+    </div>
+    <div style="padding: 28px 32px;">
+      <h3 style="margin: 0 0 12px 0; color: #0f172a; font-size: 18px; font-weight: 800;">Customer Response to support@cathaybankusa.com</h3>
+      <p style="font-size: 13px; color: #64748b; margin-top: 0; margin-bottom: 20px;">
+        A customer has sent a message or replied to the support address. This inquiry is also recorded in your Admin Support Inbox.
+      </p>
+      <div style="background: #f1f5f9; border-radius: 12px; padding: 16px 20px; margin-bottom: 20px; font-size: 13px;">
+        <div style="margin-bottom: 8px;"><strong>From Customer:</strong> ${newInquiry.fromName} (&lt;${newInquiry.fromEmail}&gt;)</div>
+        <div style="margin-bottom: 8px;"><strong>Subject:</strong> ${newInquiry.subject}</div>
+        <div style="margin-bottom: 8px;"><strong>Received At:</strong> ${new Date(newInquiry.date).toUTCString()}</div>
+        <div><strong>Assigned Support Inbox:</strong> supportcathaybankusa@gmail.com</div>
+      </div>
+      <div style="background: #ffffff; border: 1px solid #cbd5e1; border-left: 4px solid #0284c7; padding: 16px 20px; border-radius: 8px; font-size: 14px; line-height: 1.6; color: #1e293b; white-space: pre-line;">
+<strong>Message Body:</strong>
+${newInquiry.message}
+      </div>
+      <p style="font-size: 12px; color: #94a3b8; margin-top: 24px; margin-bottom: 0;">
+        Log in to the Admin Dashboard under "Support Inbox" to review or dispatch an official encrypted response.
+      </p>
+    </div>
+  </div>
+</body>
+</html>`;
+
+        await sendTransactionalEmail({
+            recipient: 'supportcathaybankusa@gmail.com',
+            emailType: 'Admin Customer Response Notification',
+            subject: `[Inbound Customer Response] ${newInquiry.subject} from ${newInquiry.fromEmail}`,
+            bodyHtml: adminAlertHtml
+        }, firestore, isFirestoreQuotaExhausted, dbState, saveLocalState);
+
+        await recordAuditLog({
+            adminId: 'system_inbound',
+            adminEmail: 'supportcathaybankusa@gmail.com',
+            action: 'INBOUND_CUSTOMER_RESPONSE',
+            targetUser: newInquiry.fromEmail,
+            previousValue: 'None',
+            newValue: `Message Received (${newInquiry.subject})`,
+            reason: `Customer responded to support@cathaybankusa.com. Admin alerted at supportcathaybankusa@gmail.com.`
+        }, firestore, isFirestoreQuotaExhausted, dbState, saveLocalState);
+
+        res.json({
+            success: true,
+            message: "Inquiry received. Our support team at supportcathaybankusa@gmail.com has been notified.",
+            inquiry: newInquiry
+        });
+    } catch (err: any) {
+        res.status(500).json({ error: "Failed to submit inquiry: " + err.message });
     }
 });
 
@@ -2674,9 +2146,11 @@ app.post("/api/admin/create-account", async (req, res) => {
             isFrozen,
             isBlocked,
             isRestricted,
+            isInactive,
             freezeMessage,
             blockMessage,
             restrictionMessage,
+            inactiveMessage,
             sendWelcomeEmail
         } = req.body;
 
@@ -2774,10 +2248,12 @@ app.post("/api/admin/create-account", async (req, res) => {
             isBlocked: !!isBlocked,
             isFrozen: !!isFrozen,
             isRestricted: !!isRestricted,
-            accountStatus: isBlocked ? 'blocked' : isFrozen ? 'frozen' : isRestricted ? 'restricted' : 'active',
+            isInactive: !!isInactive,
+            accountStatus: isBlocked ? 'blocked' : isFrozen ? 'frozen' : isRestricted ? 'restricted' : isInactive ? 'inactive' : 'active',
             freezeMessage: freezeMessage || '',
             blockMessage: blockMessage || '',
             restrictionMessage: restrictionMessage || '',
+            inactiveMessage: inactiveMessage || '',
             transferFreezeMessage: freezeMessage || '',
             cards: [defaultCard],
             transactions: initialTxns,
@@ -2846,14 +2322,11 @@ app.post("/api/admin/create-account", async (req, res) => {
 </body>
 </html>`;
                 await sendTransactionalEmail({
-                    to: cleanEmail,
-                    toName: newUser.name,
+                    recipient: cleanEmail,
+                    emailType: 'Account Created',
                     subject: `Welcome to Cathay Bank USA - Account #${assignedAccountNumber} Activated`,
-                    html: welcomeHtml,
-                    text: `Welcome to Cathay Bank USA. Account #${assignedAccountNumber} created. Login Email: ${newUser.email}, Password: ${rawPass}, PIN: ${assignedPin}, Security Code: ${assignedSecurityCode}`,
-                    emailType: 'account_created',
-                    metadata: { accountNumber: assignedAccountNumber, userId: newId }
-                }, dbState, saveLocalState);
+                    bodyHtml: welcomeHtml
+                }, firestore, isFirestoreQuotaExhausted, dbState, saveLocalState);
             } catch (emailErr) {
                 console.warn("Welcome email delivery note:", emailErr);
             }

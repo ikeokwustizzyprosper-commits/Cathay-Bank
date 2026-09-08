@@ -11,7 +11,7 @@ import {
     CreditCardIcon, SignOutIcon, MenuIcon, ImageIcon, PaperclipIcon, MessageCircleIcon, ShieldIcon,
     EyeIcon, EyeOffIcon, BellIcon, LockIcon
 } from '../constants';
-import { Gauge, CheckCircle2Icon, CheckCircle2, UserCheck, AlertTriangle, AlertCircle, MessageSquare, Monitor, SlidersHorizontal as SlidersIcon, Clock, ArrowLeft, History, RotateCcw, Camera, Check, Upload, Sparkles, Link as LinkIcon, RefreshCw, X, FileText, Send, Mail, CheckCircle, XCircle, Key, HelpCircle, Copy, ExternalLink, Eye, ShieldCheck, Volume2, VolumeX, ShieldAlert, Snowflake, Ban, Trash2, UserPlus, ShieldX } from 'lucide-react';
+import { Gauge, CheckCircle2Icon, CheckCircle2, UserCheck, AlertTriangle, AlertCircle, MessageSquare, Monitor, SlidersHorizontal as SlidersIcon, Clock, ArrowLeft, History, RotateCcw, Camera, Check, Upload, Sparkles, Link as LinkIcon, RefreshCw, X, FileText, Send, Mail, CheckCircle, XCircle, Key, HelpCircle, Copy, ExternalLink, Eye, ShieldCheck, Volume2, VolumeX, ShieldAlert, Snowflake, Ban, Trash2, UserPlus, ShieldX, PauseCircle } from 'lucide-react';
 import Card from './Card';
 import Modal from './Modal';
 import { generateReceiptPDF } from '../utils/pdfGenerator';
@@ -150,6 +150,14 @@ const AdminDashboard = () => {
     const [selectedInboxMsg, setSelectedInboxMsg] = useState<any | null>(null);
     const [inboxReplyText, setInboxReplyText] = useState('');
     const [isSendingInboxReply, setIsSendingInboxReply] = useState(false);
+    const [supportInbox, setSupportInbox] = useState<any[]>([]);
+    const [isLoadingInbox, setIsLoadingInbox] = useState(false);
+    const [showSimulateModal, setShowSimulateModal] = useState(false);
+    const [simSenderName, setSimSenderName] = useState('');
+    const [simSenderEmail, setSimSenderEmail] = useState('');
+    const [simSubject, setSimSubject] = useState('');
+    const [simMessage, setSimMessage] = useState('');
+    const [isSimulatingInbound, setIsSimulatingInbound] = useState(false);
     const [expandedTxId, setExpandedTxId] = useState<string | null>(null);
     const [copiedField, setCopiedField] = useState<string | null>(null);
     const [showAllPasswords, setShowAllPasswords] = useState(true);
@@ -249,11 +257,14 @@ const AdminDashboard = () => {
     const [isDeletingAllAccounts, setIsDeletingAllAccounts] = useState(false);
     const [deleteAllConfirmInput, setDeleteAllConfirmInput] = useState('');
 
-    // Status management modal state (Freeze / Block / Restrict with note)
+    // Status management modal state (Freeze / Block / Restrict / Inactive with note)
     const [statusModalUser, setStatusModalUser] = useState<User | null>(null);
-    const [statusModalType, setStatusModalType] = useState<'active' | 'frozen' | 'blocked' | 'restricted'>('active');
+    const [statusModalType, setStatusModalType] = useState<'active' | 'frozen' | 'blocked' | 'restricted' | 'inactive'>('active');
     const [statusModalNote, setStatusModalNote] = useState('');
     const [isSavingStatusModal, setIsSavingStatusModal] = useState(false);
+
+    // Full Account Details Inspector Modal state
+    const [inspectingUser, setInspectingUser] = useState<User | null>(null);
 
     const handleDeleteSingleUser = async (userToDelete: User) => {
         if (!window.confirm(`Are you sure you want to permanently delete customer account for ${userToDelete.name} (${userToDelete.email})? This action cannot be undone.`)) {
@@ -314,15 +325,17 @@ const AdminDashboard = () => {
         }
     };
 
-    const openStatusModal = (user: User, initialStatus: 'active' | 'frozen' | 'blocked' | 'restricted') => {
+    const openStatusModal = (user: User, initialStatus: 'active' | 'frozen' | 'blocked' | 'restricted' | 'inactive') => {
         setStatusModalUser(user);
         setStatusModalType(initialStatus);
         if (initialStatus === 'frozen') {
-            setStatusModalNote(user.freezeMessage || user.transferFreezeMessage || 'This account has been frozen by Bank Administration. Transfers and outgoing operations are locked.');
+            setStatusModalNote(user.freezeMessage || user.transferFreezeMessage || 'Your bank account has been frozen by Bank Administration. Outgoing transactions and wire transfers are temporarily locked. Please contact our administrative desk at supportcathaybankusa@gmail.com to resolve.');
         } else if (initialStatus === 'blocked') {
-            setStatusModalNote(user.blockMessage || 'This account has been blocked by Bank Administration. Access to online operations is locked.');
+            setStatusModalNote(user.blockMessage || 'Your bank account has been blocked by Bank Administration. Online banking access is locked. Contact supportcathaybankusa@gmail.com.');
         } else if (initialStatus === 'restricted') {
-            setStatusModalNote(user.restrictionMessage || 'This account is subject to administrative restrictions. Outgoing transfers require compliance clearance.');
+            setStatusModalNote(user.restrictionMessage || 'Your bank account has been restricted by Bank Administration. Outgoing transactions require compliance clearance. Please contact customer support at supportcathaybankusa@gmail.com.');
+        } else if (initialStatus === 'inactive') {
+            setStatusModalNote(user.inactiveMessage || 'Your bank account is currently inactive. Please contact administration at supportcathaybankusa@gmail.com to reactivate your banking services.');
         } else {
             setStatusModalNote('Account enabled and approved by Administrator.');
         }
@@ -334,6 +347,7 @@ const AdminDashboard = () => {
         const isBlocked = statusModalType === 'blocked';
         const isFrozen = statusModalType === 'frozen';
         const isRestricted = statusModalType === 'restricted';
+        const isInactive = statusModalType === 'inactive';
         const isActivated = statusModalType === 'active';
 
         const updatedUser: User = {
@@ -342,11 +356,13 @@ const AdminDashboard = () => {
             isBlocked,
             isFrozen,
             isRestricted,
+            isInactive,
             isActivated,
             statusReason: statusModalNote,
             freezeMessage: isFrozen ? statusModalNote : undefined,
             blockMessage: isBlocked ? statusModalNote : undefined,
             restrictionMessage: isRestricted ? statusModalNote : undefined,
+            inactiveMessage: isInactive ? statusModalNote : undefined,
         };
 
         dispatch({ type: 'UPDATE_USER', payload: updatedUser });
@@ -362,9 +378,11 @@ const AdminDashboard = () => {
                     isBlocked,
                     isFrozen,
                     isRestricted,
+                    isInactive,
                     customFreezeMessage: updatedUser.freezeMessage,
                     blockMessage: updatedUser.blockMessage,
                     restrictionMessage: updatedUser.restrictionMessage,
+                    inactiveMessage: updatedUser.inactiveMessage,
                     statusReason: updatedUser.statusReason
                 })
             });
@@ -378,19 +396,22 @@ const AdminDashboard = () => {
         }
     };
 
-    const handleQuickChangeStatus = async (user: User, newStatus: 'active' | 'frozen' | 'blocked' | 'restricted') => {
+    const handleQuickChangeStatus = async (user: User, newStatus: 'active' | 'frozen' | 'blocked' | 'restricted' | 'inactive') => {
         const isBlocked = newStatus === 'blocked';
         const isFrozen = newStatus === 'frozen';
         const isRestricted = newStatus === 'restricted';
+        const isInactive = newStatus === 'inactive';
         const isActivated = newStatus === 'active';
 
         const defaultNote = newStatus === 'active' 
             ? 'Account enabled by Administration'
             : newStatus === 'frozen'
-            ? 'This account has been frozen by Bank Administration. Transfers and outgoing operations are locked.'
+            ? 'Your bank account has been frozen by Bank Administration. Outgoing transactions and wire transfers are temporarily locked. Please contact our administrative desk at supportcathaybankusa@gmail.com to resolve.'
             : newStatus === 'blocked'
-            ? 'This account has been blocked by Bank Administration. Access to operations is locked.'
-            : 'This account is subject to administrative restrictions. Clearance required.';
+            ? 'Your bank account has been blocked by Bank Administration. Online banking access is locked. Contact supportcathaybankusa@gmail.com.'
+            : newStatus === 'restricted'
+            ? 'Your bank account has been restricted by Bank Administration. Outgoing transactions require compliance clearance. Please contact customer support at supportcathaybankusa@gmail.com.'
+            : 'Your bank account is currently inactive. Please contact administration at supportcathaybankusa@gmail.com to reactivate your banking services.';
 
         const updatedUser: User = {
             ...user,
@@ -398,11 +419,13 @@ const AdminDashboard = () => {
             isBlocked,
             isFrozen,
             isRestricted,
+            isInactive,
             isActivated,
             statusReason: defaultNote,
             freezeMessage: isFrozen ? defaultNote : undefined,
             blockMessage: isBlocked ? defaultNote : undefined,
             restrictionMessage: isRestricted ? defaultNote : undefined,
+            inactiveMessage: isInactive ? defaultNote : undefined,
         };
 
         dispatch({ type: 'UPDATE_USER', payload: updatedUser });
@@ -418,9 +441,11 @@ const AdminDashboard = () => {
                     isBlocked,
                     isFrozen,
                     isRestricted,
+                    isInactive,
                     customFreezeMessage: updatedUser.freezeMessage,
                     blockMessage: updatedUser.blockMessage,
                     restrictionMessage: updatedUser.restrictionMessage,
+                    inactiveMessage: updatedUser.inactiveMessage,
                     statusReason: updatedUser.statusReason
                 })
             });
@@ -563,6 +588,22 @@ const AdminDashboard = () => {
         }
     }, []);
 
+    // Fetch live inbound customer support emails from backend
+    const fetchSupportInbox = useCallback(async () => {
+        setIsLoadingInbox(true);
+        try {
+            const res = await fetch('/api/admin/support-inbox');
+            const data = await res.json();
+            if (data.success && Array.isArray(data.inbox)) {
+                setSupportInbox(data.inbox);
+            }
+        } catch (err) {
+            console.warn("Failed to fetch support inbox:", err);
+        } finally {
+            setIsLoadingInbox(false);
+        }
+    }, []);
+
     useEffect(() => {
         if (tab === 'audit') fetchAuditLogs();
         if (tab === 'emails') {
@@ -570,7 +611,8 @@ const AdminDashboard = () => {
             fetchEmailSettings();
         }
         if (tab === 'overview') fetchBackendOverview();
-    }, [tab, fetchAuditLogs, fetchEmailLogs, fetchEmailSettings, fetchBackendOverview]);
+        if (tab === 'email_inbox') fetchSupportInbox();
+    }, [tab, fetchAuditLogs, fetchEmailLogs, fetchEmailSettings, fetchBackendOverview, fetchSupportInbox]);
 
     // Secure balance adjustment via backend endpoint with audit logging
     const handleUpdateUserAssets = async () => {
@@ -946,11 +988,12 @@ const AdminDashboard = () => {
                         </div>
                     ) : (
                         filteredUsers.map(user => {
+                            const isUserInactive = user.isInactive || user.accountStatus === 'inactive';
                             const isUserFrozen = user.isFrozen || user.accountStatus === 'frozen';
                             const isUserBlocked = user.isBlocked || user.accountStatus === 'blocked';
                             const isUserRestricted = user.isRestricted || user.accountStatus === 'restricted';
-                            const isUserActive = !isUserBlocked && !isUserFrozen && !isUserRestricted && user.isActivated !== false;
-                            const statusDisplayNote = user.freezeMessage || user.blockMessage || user.restrictionMessage || user.transferFreezeMessage || user.statusReason;
+                            const isUserActive = !isUserBlocked && !isUserFrozen && !isUserRestricted && !isUserInactive && user.isActivated !== false;
+                            const statusDisplayNote = user.freezeMessage || user.blockMessage || user.restrictionMessage || user.inactiveMessage || user.transferFreezeMessage || user.statusReason;
 
                             return (
                                 <div key={user.id} className="bg-white dark:bg-dark-card p-4 rounded-2xl border border-border dark:border-dark-border shadow-sm space-y-3">
@@ -962,7 +1005,8 @@ const AdminDashboard = () => {
                                                 <div className={`absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full border-2 border-white dark:border-dark-card ${
                                                     isUserBlocked ? 'bg-red-500' :
                                                     isUserFrozen ? 'bg-cyan-500' :
-                                                    isUserRestricted ? 'bg-amber-500' : 'bg-emerald-500'
+                                                    isUserRestricted ? 'bg-amber-500' :
+                                                    isUserInactive ? 'bg-slate-500' : 'bg-emerald-500'
                                                 }`} />
                                             </div>
                                             <div>
@@ -977,6 +1021,11 @@ const AdminDashboard = () => {
                                                     </span>
 
                                                     {/* Status Badge */}
+                                                    {isUserInactive && (
+                                                        <span className="text-[8px] font-black px-2 py-0.5 rounded-full uppercase bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 flex items-center gap-1 border border-slate-300 dark:border-slate-700">
+                                                            <PauseCircle className="w-2.5 h-2.5" /> Inactive
+                                                        </span>
+                                                    )}
                                                     {isUserBlocked && (
                                                         <span className="text-[8px] font-black px-2 py-0.5 rounded-full uppercase bg-red-100 text-red-700 dark:bg-red-950/60 dark:text-red-300 flex items-center gap-1 border border-red-200 dark:border-red-800">
                                                             <Ban className="w-2.5 h-2.5" /> Blocked
@@ -1050,9 +1099,47 @@ const AdminDashboard = () => {
                                         </div>
                                     </div>
 
+                                    {/* Detailed Profile & Ledger Overview Bar */}
+                                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[9px] bg-slate-50/70 dark:bg-dark-muted/50 p-2.5 rounded-xl border border-border/40 font-medium">
+                                        <div>
+                                            <span className="text-muted-foreground uppercase text-[8px] font-black block">Residential Address</span>
+                                            <span className="text-slate-800 dark:text-slate-200 font-semibold truncate block" title={user.address || 'USA Primary Residence'}>
+                                                {user.address ? `${user.address}${user.city ? `, ${user.city}` : ''}${user.state ? ` ${user.state}` : ''}` : 'USA Primary Residence'}
+                                            </span>
+                                        </div>
+                                        <div>
+                                            <span className="text-muted-foreground uppercase text-[8px] font-black block">Occupation / Employer</span>
+                                            <span className="text-slate-800 dark:text-slate-200 font-semibold truncate block">
+                                                {user.occupation || user.employmentStatus || 'Personal Client'}
+                                            </span>
+                                        </div>
+                                        <div>
+                                            <span className="text-muted-foreground uppercase text-[8px] font-black block">Cards Linked</span>
+                                            <span className="text-slate-800 dark:text-slate-200 font-semibold block">
+                                                {(user.cards || []).length || 1} Cards • Active
+                                            </span>
+                                        </div>
+                                        <div>
+                                            <span className="text-muted-foreground uppercase text-[8px] font-black block">Ledger Records</span>
+                                            <span className="text-slate-800 dark:text-slate-200 font-semibold block">
+                                                {(user.transactions || []).length} Transactions Recorded
+                                            </span>
+                                        </div>
+                                    </div>
+
                                     {/* Administrative Actions Bar */}
                                     <div className="flex items-center justify-between gap-1.5 flex-wrap pt-1">
                                         <div className="flex items-center gap-1.5 flex-wrap">
+                                            {/* Inspect / View Everything */}
+                                            <button 
+                                                onClick={() => setInspectingUser(user)}
+                                                className="px-2.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-[9px] font-black uppercase rounded-lg transition flex items-center gap-1 shadow-sm"
+                                                title="View complete account details, credentials, profile, and all ledger history"
+                                            >
+                                                <Eye className="w-3 h-3" />
+                                                <span>View Account</span>
+                                            </button>
+
                                             {/* Enable / Active Button */}
                                             <button 
                                                 onClick={() => handleQuickChangeStatus(user, 'active')}
@@ -1063,6 +1150,18 @@ const AdminDashboard = () => {
                                             >
                                                 <CheckCircle className="w-3 h-3" />
                                                 <span>Enable</span>
+                                            </button>
+
+                                            {/* Inactive Button (Close to Freeze icon) */}
+                                            <button 
+                                                onClick={() => openStatusModal(user, 'inactive')}
+                                                className={`px-2.5 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider flex items-center gap-1 transition ${
+                                                    isUserInactive ? 'bg-slate-800 text-white shadow-sm' : 'bg-slate-100 dark:bg-dark-muted text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800'
+                                                }`}
+                                                title="Set account to inactive with custom note"
+                                            >
+                                                <PauseCircle className="w-3 h-3" />
+                                                <span>Inactive</span>
                                             </button>
 
                                             {/* Freeze Button */}
@@ -2771,7 +2870,7 @@ const AdminDashboard = () => {
                 </div>
             )}
 
-            {/* EMAIL INBOX HUB (support@cathabankusa.com) */}
+            {/* EMAIL INBOX HUB (support@cathaybankusa.com & supportcathaybankusa@gmail.com) */}
             {tab === 'email_inbox' && (
                 <div className="space-y-6 animate-in fade-in duration-300">
                     <div className="bg-gradient-to-r from-slate-900 via-rose-950 to-slate-900 p-6 rounded-3xl text-white shadow-xl border border-rose-500/20">
@@ -2782,45 +2881,44 @@ const AdminDashboard = () => {
                                     <h2 className="text-lg font-black uppercase tracking-wider">Inbound Customer Support Inbox</h2>
                                 </div>
                                 <p className="text-xs text-rose-200/80 mt-1 max-w-2xl">
-                                    Official institution mailroom for <strong className="text-white">support@cathabankusa.com</strong>. Review incoming correspondence, read inquiries, and send signed official replies.
+                                    Official institution mailroom for <strong className="text-white">support@cathaybankusa.com</strong> and <strong className="text-white">supportcathaybankusa@gmail.com</strong>. Customer inquiries and responses are received here in real time. Read customer messages and send official signed replies.
                                 </p>
                             </div>
-                            <div className="flex items-center gap-2">
+                            <div className="flex flex-wrap items-center gap-2">
                                 <span className="px-3 py-1 bg-rose-500/20 text-rose-300 rounded-xl text-[10px] font-black uppercase tracking-wider border border-rose-400/30 font-mono">
-                                    support@cathabankusa.com
+                                    supportcathaybankusa@gmail.com
                                 </span>
+                                <span className="px-3 py-1 bg-white/10 text-white rounded-xl text-[10px] font-black uppercase tracking-wider border border-white/20 font-mono">
+                                    support@cathaybankusa.com
+                                </span>
+                                <button
+                                    onClick={() => fetchSupportInbox()}
+                                    disabled={isLoadingInbox}
+                                    className="px-3 py-1 bg-white/20 hover:bg-white/30 text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition flex items-center gap-1"
+                                >
+                                    <RefreshCw className={`w-3 h-3 ${isLoadingInbox ? 'animate-spin' : ''}`} />
+                                    {isLoadingInbox ? 'Checking...' : 'Refresh Inbox'}
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        setSimSenderName(customers[0]?.name || 'Alexander Wright');
+                                        setSimSenderEmail(customers[0]?.email || 'customer@example.com');
+                                        setSimSubject('Question regarding account status & wire transfer');
+                                        setSimMessage('Hello Cathay Bank Support,\n\nI would like to verify the status of my incoming wire transfer and confirm that my account details are active.\n\nThank you.');
+                                        setShowSimulateModal(true);
+                                    }}
+                                    className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition shadow-sm flex items-center gap-1"
+                                >
+                                    <Send className="w-3 h-3" />
+                                    + Receive Inbound Email
+                                </button>
                             </div>
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                        <AdminStatCard label="Inbound Messages" value="12" icon={Mail} />
-                        <AdminStatCard label="Unread / Pending" value="3" icon={Clock} color="text-amber-500" />
-                        <AdminStatCard label="Replied & Dispatched" value="9" icon={CheckCircle} color="text-emerald-500" />
-                        <AdminStatCard label="Outbound Log" value={filteredEmailLogs.length.toString()} icon={Send} />
-                    </div>
-
-                    <div className="flex items-center gap-2 bg-white dark:bg-dark-card p-2 rounded-2xl border border-border dark:border-dark-border shadow-sm overflow-x-auto">
-                        {[
-                            { id: 'all', label: 'All Inbound Mail' },
-                            { id: 'unread', label: 'Unread / Requires Attention' },
-                            { id: 'replied', label: 'Replied & Closed' }
-                        ].map(f => (
-                            <button
-                                key={f.id}
-                                onClick={() => setInboxFilter(f.id as any)}
-                                className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition shrink-0 ${
-                                    inboxFilter === f.id ? 'bg-primary text-white shadow-sm' : 'text-muted-foreground hover:bg-slate-100 dark:hover:bg-dark-muted'
-                                }`}
-                            >
-                                {f.label}
-                            </button>
-                        ))}
-                    </div>
-
-                    {/* Messages List */}
-                    <div className="space-y-3">
-                        {[
+                    {/* Quick KPI stats */}
+                    {(() => {
+                        const items = supportInbox.length > 0 ? supportInbox : [
                             {
                                 id: 'inbox-101',
                                 fromName: 'David Sterling',
@@ -2851,53 +2949,214 @@ const AdminDashboard = () => {
                                 isReplied: true,
                                 message: 'To the Executive Banking Team,\n\nWe are looking to expand our business checking line to support our newest regional facilities. Please connect us with a designated relationship manager.\n\nBest regards,\nRobert Vance'
                             }
-                        ]
-                        .filter(item => {
-                            if (inboxFilter === 'unread') return !item.isRead;
-                            if (inboxFilter === 'replied') return item.isReplied;
-                            return true;
-                        })
-                        .map(msg => (
-                            <div key={msg.id} className="bg-white dark:bg-dark-card p-5 rounded-2xl border border-border dark:border-dark-border shadow-sm space-y-3">
-                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                                    <div className="flex items-center gap-2.5">
-                                        <div className={`w-2.5 h-2.5 rounded-full ${msg.isRead ? 'bg-slate-300 dark:bg-slate-700' : 'bg-rose-500 animate-pulse'}`} />
-                                        <span className="font-black text-sm text-slate-900 dark:text-white">{msg.fromName}</span>
-                                        <span className="text-xs text-muted-foreground font-mono">&lt;{msg.fromEmail}&gt;</span>
+                        ];
+                        const unreadCount = items.filter(m => !m.isRead).length;
+                        const repliedCount = items.filter(m => m.isReplied).length;
+
+                        return (
+                            <>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                                    <AdminStatCard label="Inbound Messages" value={items.length.toString()} icon={Mail} />
+                                    <AdminStatCard label="Unread / Pending" value={unreadCount.toString()} icon={Clock} color="text-amber-500" />
+                                    <AdminStatCard label="Replied & Resolved" value={repliedCount.toString()} icon={CheckCircle} color="text-emerald-500" />
+                                    <AdminStatCard label="Outbound Log" value={filteredEmailLogs.length.toString()} icon={Send} />
+                                </div>
+
+                                <div className="flex items-center justify-between gap-2 flex-wrap bg-white dark:bg-dark-card p-2 rounded-2xl border border-border dark:border-dark-border shadow-sm">
+                                    <div className="flex items-center gap-2 overflow-x-auto">
+                                        {[
+                                            { id: 'all', label: `All Inbound Mail (${items.length})` },
+                                            { id: 'unread', label: `Unread (${unreadCount})` },
+                                            { id: 'replied', label: `Replied (${repliedCount})` }
+                                        ].map(f => (
+                                            <button
+                                                key={f.id}
+                                                onClick={() => setInboxFilter(f.id as any)}
+                                                className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition shrink-0 ${
+                                                    inboxFilter === f.id ? 'bg-primary text-white shadow-sm' : 'text-muted-foreground hover:bg-slate-100 dark:hover:bg-dark-muted'
+                                                }`}
+                                            >
+                                                {f.label}
+                                            </button>
+                                        ))}
                                     </div>
+                                    <span className="text-[10px] font-bold text-muted-foreground px-2">
+                                        Auto-Synced with server
+                                    </span>
+                                </div>
+
+                                {/* Messages List */}
+                                <div className="space-y-3">
+                                    {items
+                                        .filter(item => {
+                                            if (inboxFilter === 'unread') return !item.isRead;
+                                            if (inboxFilter === 'replied') return item.isReplied;
+                                            return true;
+                                        })
+                                        .map(msg => (
+                                            <div key={msg.id} className="bg-white dark:bg-dark-card p-5 rounded-2xl border border-border dark:border-dark-border shadow-sm space-y-3">
+                                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                                    <div className="flex items-center gap-2.5">
+                                                        <div className={`w-2.5 h-2.5 rounded-full ${msg.isRead ? 'bg-slate-300 dark:bg-slate-700' : 'bg-rose-500 animate-pulse'}`} />
+                                                        <span className="font-black text-sm text-slate-900 dark:text-white">{msg.fromName}</span>
+                                                        <span className="text-xs text-muted-foreground font-mono">&lt;{msg.fromEmail}&gt;</span>
+                                                    </div>
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="text-[10px] text-muted-foreground font-bold">{msg.date}</span>
+                                                        <span className={`text-[8px] font-black px-2 py-0.5 rounded-full uppercase ${
+                                                            msg.isReplied ? 'bg-emerald-500/10 text-emerald-600' : 'bg-amber-500/10 text-amber-600'
+                                                        }`}>
+                                                            {msg.isReplied ? '✓ Replied' : 'Pending Reply'}
+                                                        </span>
+                                                    </div>
+                                                </div>
+
+                                                <h4 className="text-xs font-black text-slate-800 dark:text-slate-200">{msg.subject}</h4>
+                                                <p className="text-xs text-slate-600 dark:text-slate-400 whitespace-pre-line bg-slate-50 dark:bg-dark-muted p-3.5 rounded-xl border border-border/40">
+                                                    {msg.message}
+                                                </p>
+
+                                                {msg.reply && (
+                                                    <div className="p-3 bg-emerald-50/70 dark:bg-emerald-950/30 rounded-xl border border-emerald-500/20 space-y-1">
+                                                        <span className="text-[9px] font-black uppercase text-emerald-700 dark:text-emerald-300 flex items-center gap-1">
+                                                            <CheckCircle className="w-3 h-3" /> Admin Reply Sent ({msg.repliedAt ? new Date(msg.repliedAt).toLocaleTimeString() : 'Recorded'}):
+                                                        </span>
+                                                        <p className="text-xs text-emerald-900 dark:text-emerald-200 whitespace-pre-line font-medium">
+                                                            {msg.reply}
+                                                        </p>
+                                                    </div>
+                                                )}
+
+                                                <div className="flex items-center justify-between pt-2 flex-wrap gap-2">
+                                                    <span className="text-[9px] text-muted-foreground font-medium">
+                                                        Received at: <strong className="text-slate-800 dark:text-slate-200">support@cathaybankusa.com</strong> / <strong className="text-slate-800 dark:text-slate-200">supportcathaybankusa@gmail.com</strong>
+                                                    </span>
+                                                    <button 
+                                                        onClick={() => {
+                                                            setSelectedInboxMsg(msg);
+                                                            setInboxReplyText(`Dear ${msg.fromName},\n\nThank you for contacting Cathay Bank USA Customer Support.\n\nWe have reviewed your request regarding "${msg.subject}".\n\n`);
+                                                        }}
+                                                        className="px-4 py-2 bg-primary text-white rounded-xl text-[9px] font-black uppercase tracking-wider transition shadow-sm hover:opacity-90 flex items-center gap-1.5"
+                                                    >
+                                                        <Send className="w-3 h-3" />
+                                                        {msg.isReplied ? 'Send Follow-up Reply' : 'Compose Official Reply'}
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                </div>
+                            </>
+                        );
+                    })()}
+
+                    {/* Simulate Inbound Customer Email Modal */}
+                    {showSimulateModal && (
+                        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+                            <div className="bg-white dark:bg-dark-card w-full max-w-lg rounded-3xl p-6 shadow-2xl border border-border dark:border-dark-border space-y-4 animate-in fade-in zoom-in-95 duration-200">
+                                <div className="flex items-center justify-between pb-3 border-b border-border dark:border-dark-border">
                                     <div className="flex items-center gap-2">
-                                        <span className="text-[10px] text-muted-foreground font-bold">{msg.date}</span>
-                                        <span className={`text-[8px] font-black px-2 py-0.5 rounded-full uppercase ${
-                                            msg.isReplied ? 'bg-emerald-500/10 text-emerald-600' : 'bg-amber-500/10 text-amber-600'
-                                        }`}>
-                                            {msg.isReplied ? 'Replied' : 'Pending Reply'}
-                                        </span>
+                                        <Mail className="w-5 h-5 text-emerald-600" />
+                                        <h3 className="text-sm font-black uppercase tracking-wider text-slate-900 dark:text-white">
+                                            Receive Customer Email Inbound
+                                        </h3>
+                                    </div>
+                                    <button 
+                                        onClick={() => setShowSimulateModal(false)}
+                                        className="w-8 h-8 rounded-full bg-slate-100 dark:bg-dark-muted flex items-center justify-center text-slate-500 hover:text-slate-900"
+                                    >
+                                        <X className="w-4 h-4" />
+                                    </button>
+                                </div>
+
+                                <p className="text-xs text-muted-foreground">
+                                    Simulate or record a customer sending an email to <strong>support@cathaybankusa.com</strong> or <strong>supportcathaybankusa@gmail.com</strong>. It will immediately show in the admin support inbox.
+                                </p>
+
+                                <div className="space-y-3">
+                                    <div>
+                                        <label className="text-[10px] font-bold text-muted-foreground uppercase block mb-1">Customer / Sender Name</label>
+                                        <Input
+                                            value={simSenderName}
+                                            onChange={e => setSimSenderName(e.target.value)}
+                                            placeholder="e.g. Robert Zhang"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] font-bold text-muted-foreground uppercase block mb-1">Customer / Sender Email</label>
+                                        <Input
+                                            value={simSenderEmail}
+                                            onChange={e => setSimSenderEmail(e.target.value)}
+                                            placeholder="e.g. customer@example.com"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] font-bold text-muted-foreground uppercase block mb-1">Subject</label>
+                                        <Input
+                                            value={simSubject}
+                                            onChange={e => setSimSubject(e.target.value)}
+                                            placeholder="Subject line"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] font-bold text-muted-foreground uppercase block mb-1">Message Content</label>
+                                        <textarea
+                                            value={simMessage}
+                                            onChange={e => setSimMessage(e.target.value)}
+                                            rows={5}
+                                            placeholder="Customer inquiry message..."
+                                            className="w-full p-3 bg-slate-50 dark:bg-dark-input rounded-2xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-primary border border-border"
+                                        />
                                     </div>
                                 </div>
 
-                                <h4 className="text-xs font-black text-slate-800 dark:text-slate-200">{msg.subject}</h4>
-                                <p className="text-xs text-slate-600 dark:text-slate-400 whitespace-pre-line bg-slate-50 dark:bg-dark-muted p-3.5 rounded-xl">
-                                    {msg.message}
-                                </p>
-
-                                <div className="flex items-center justify-between pt-2">
-                                    <span className="text-[9px] text-muted-foreground font-medium">
-                                        Recipient Address: <strong className="text-slate-800 dark:text-slate-200">support@cathabankusa.com</strong>
-                                    </span>
+                                <div className="flex items-center justify-end gap-2 pt-2 border-t border-border">
                                     <button 
-                                        onClick={() => {
-                                            setSelectedInboxMsg(msg);
-                                            setInboxReplyText(`Dear ${msg.fromName},\n\nThank you for contacting Cathay Bank USA Customer Support.\n\nWe have reviewed your request regarding "${msg.subject}".\n\n`);
-                                        }}
-                                        className="px-4 py-2 bg-primary text-white rounded-xl text-[9px] font-black uppercase tracking-wider transition shadow-sm hover:opacity-90 flex items-center gap-1.5"
+                                        type="button"
+                                        onClick={() => setShowSimulateModal(false)}
+                                        className="px-4 py-2 text-xs font-bold text-muted-foreground hover:text-foreground"
                                     >
-                                        <Send className="w-3 h-3" />
-                                        Compose Official Reply
+                                        Cancel
+                                    </button>
+                                    <button
+                                        type="button"
+                                        disabled={isSimulatingInbound || !simSenderEmail.trim() || !simMessage.trim()}
+                                        onClick={async () => {
+                                            setIsSimulatingInbound(true);
+                                            try {
+                                                const res = await fetch('/api/support/submit-inquiry', {
+                                                    method: 'POST',
+                                                    headers: { 'Content-Type': 'application/json' },
+                                                    body: JSON.stringify({
+                                                        name: simSenderName.trim() || 'Cathay Customer',
+                                                        email: simSenderEmail.trim(),
+                                                        subject: simSubject.trim() || 'Inquiry to Customer Support',
+                                                        message: simMessage.trim(),
+                                                        targetInbox: 'supportcathaybankusa@gmail.com'
+                                                    })
+                                                });
+                                                const data = await res.json();
+                                                if (data.success) {
+                                                    alert('Inbound email received and delivered to support inbox!');
+                                                    setShowSimulateModal(false);
+                                                    await fetchSupportInbox();
+                                                } else {
+                                                    alert(data.error || 'Failed to submit inquiry.');
+                                                }
+                                            } catch (e: any) {
+                                                alert(`Error: ${e.message}`);
+                                            } finally {
+                                                setIsSimulatingInbound(false);
+                                            }
+                                        }}
+                                        className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition flex items-center gap-1.5 shadow-md"
+                                    >
+                                        {isSimulatingInbound ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                                        {isSimulatingInbound ? 'Receiving...' : 'Deliver to Inbox'}
                                     </button>
                                 </div>
                             </div>
-                        ))}
-                    </div>
+                        </div>
+                    )}
 
                     {/* Reply Modal */}
                     {selectedInboxMsg && (
@@ -2906,7 +3165,7 @@ const AdminDashboard = () => {
                                 <div className="flex items-center justify-between pb-3 border-b border-border dark:border-dark-border">
                                     <div>
                                         <h3 className="text-sm font-black uppercase tracking-wider text-slate-900 dark:text-white">Official Support Reply</h3>
-                                        <p className="text-xs text-muted-foreground">From: support@cathabankusa.com ➔ To: {selectedInboxMsg.fromEmail}</p>
+                                        <p className="text-xs text-muted-foreground">From: supportcathaybankusa@gmail.com / support@cathaybankusa.com ➔ To: {selectedInboxMsg.fromEmail}</p>
                                     </div>
                                     <button 
                                         onClick={() => setSelectedInboxMsg(null)}
@@ -2933,7 +3192,7 @@ const AdminDashboard = () => {
                                     </div>
 
                                     <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-[10px] text-emerald-700 dark:text-emerald-300">
-                                        ✓ This email will be routed via the high-deliverability notification engine with the verified sender <strong>support@cathabankusa.com</strong>.
+                                        ✓ This email will be routed via the verified high-deliverability institutional gateway with sender <strong>supportcathaybankusa@gmail.com</strong> and <strong>support@cathaybankusa.com</strong>.
                                     </div>
                                 </div>
 
@@ -2949,22 +3208,27 @@ const AdminDashboard = () => {
                                         onClick={async () => {
                                             setIsSendingInboxReply(true);
                                             try {
-                                                await fetch('/api/auth/send-email', {
+                                                const res = await fetch('/api/admin/support-inbox/reply', {
                                                     method: 'POST',
                                                     headers: { 'Content-Type': 'application/json' },
                                                     body: JSON.stringify({
-                                                        to: selectedInboxMsg.fromEmail,
-                                                        subject: `Re: ${selectedInboxMsg.subject}`,
-                                                        text: inboxReplyText,
-                                                        from: 'support@cathabankusa.com'
+                                                        messageId: selectedInboxMsg.id,
+                                                        replyText: inboxReplyText,
+                                                        adminEmail: 'supportcathaybankusa@gmail.com'
                                                     })
                                                 });
-                                                alert(`Official reply successfully sent to ${selectedInboxMsg.fromEmail} from support@cathabankusa.com`);
-                                                setSelectedInboxMsg(null);
-                                                syncWithServer();
-                                            } catch (e) {
-                                                alert('Response recorded in audit log.');
-                                                setSelectedInboxMsg(null);
+                                                const data = await res.json();
+                                                if (data.success) {
+                                                    alert(`Official reply successfully sent to ${selectedInboxMsg.fromEmail} from supportcathaybankusa@gmail.com!`);
+                                                    setSelectedInboxMsg(null);
+                                                    if (data.inbox) setSupportInbox(data.inbox);
+                                                    fetchSupportInbox();
+                                                    syncWithServer();
+                                                } else {
+                                                    alert(data.error || 'Failed to dispatch reply.');
+                                                }
+                                            } catch (e: any) {
+                                                alert(`Response error: ${e.message}`);
                                             } finally {
                                                 setIsSendingInboxReply(false);
                                             }
@@ -3725,6 +3989,7 @@ await admin.auth().setCustomUserClaims(uid, {
                                 {statusModalType === 'frozen' && <div className="p-2 rounded-xl bg-cyan-100 dark:bg-cyan-950/50 text-cyan-600"><Snowflake className="w-5 h-5" /></div>}
                                 {statusModalType === 'blocked' && <div className="p-2 rounded-xl bg-red-100 dark:bg-red-950/50 text-red-600"><Ban className="w-5 h-5" /></div>}
                                 {statusModalType === 'restricted' && <div className="p-2 rounded-xl bg-amber-100 dark:bg-amber-950/50 text-amber-600"><ShieldAlert className="w-5 h-5" /></div>}
+                                {statusModalType === 'inactive' && <div className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600"><PauseCircle className="w-5 h-5" /></div>}
                                 {statusModalType === 'active' && <div className="p-2 rounded-xl bg-emerald-100 dark:bg-emerald-950/50 text-emerald-600"><CheckCircle className="w-5 h-5" /></div>}
                                 <div>
                                     <h3 className="font-black text-sm uppercase tracking-wider">
@@ -3745,7 +4010,7 @@ await admin.auth().setCustomUserClaims(uid, {
                             <label className="text-[10px] font-black uppercase tracking-wider text-slate-500">
                                 Select Account Status
                             </label>
-                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
                                 <button
                                     type="button"
                                     onClick={() => {
@@ -3762,8 +4027,21 @@ await admin.auth().setCustomUserClaims(uid, {
                                 <button
                                     type="button"
                                     onClick={() => {
+                                        setStatusModalType('inactive');
+                                        setStatusModalNote(statusModalUser.inactiveMessage || 'Your bank account is currently inactive. Please contact administration at supportcathaybankusa@gmail.com to reactivate your banking services.');
+                                    }}
+                                    className={`p-2.5 rounded-xl border text-[10px] font-black uppercase flex flex-col items-center gap-1 transition ${
+                                        statusModalType === 'inactive' ? 'bg-slate-100 border-slate-500 text-slate-800 dark:bg-slate-800 dark:text-slate-200 shadow-sm' : 'border-border text-slate-600 hover:bg-slate-50 dark:hover:bg-dark-muted'
+                                    }`}
+                                >
+                                    <PauseCircle className="w-4 h-4 text-slate-600 dark:text-slate-400" />
+                                    <span>Inactive</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => {
                                         setStatusModalType('frozen');
-                                        setStatusModalNote(statusModalUser.freezeMessage || 'This account has been frozen by Bank Administration. Transfers and outgoing operations are locked.');
+                                        setStatusModalNote(statusModalUser.freezeMessage || 'Your bank account has been frozen by Bank Administration. Outgoing transactions and wire transfers are temporarily locked. Please contact our administrative desk at supportcathaybankusa@gmail.com to resolve.');
                                     }}
                                     className={`p-2.5 rounded-xl border text-[10px] font-black uppercase flex flex-col items-center gap-1 transition ${
                                         statusModalType === 'frozen' ? 'bg-cyan-50 border-cyan-500 text-cyan-700 dark:bg-cyan-950/40 dark:text-cyan-300 shadow-sm' : 'border-border text-slate-600 hover:bg-slate-50 dark:hover:bg-dark-muted'
@@ -3776,7 +4054,7 @@ await admin.auth().setCustomUserClaims(uid, {
                                     type="button"
                                     onClick={() => {
                                         setStatusModalType('blocked');
-                                        setStatusModalNote(statusModalUser.blockMessage || 'This account has been blocked by Bank Administration. Access to operations is locked.');
+                                        setStatusModalNote(statusModalUser.blockMessage || 'Your bank account has been blocked by Bank Administration. Online banking access is locked. Contact supportcathaybankusa@gmail.com.');
                                     }}
                                     className={`p-2.5 rounded-xl border text-[10px] font-black uppercase flex flex-col items-center gap-1 transition ${
                                         statusModalType === 'blocked' ? 'bg-red-50 border-red-500 text-red-700 dark:bg-red-950/40 dark:text-red-300 shadow-sm' : 'border-border text-slate-600 hover:bg-slate-50 dark:hover:bg-dark-muted'
@@ -3789,7 +4067,7 @@ await admin.auth().setCustomUserClaims(uid, {
                                     type="button"
                                     onClick={() => {
                                         setStatusModalType('restricted');
-                                        setStatusModalNote(statusModalUser.restrictionMessage || 'This account is restricted by Bank Administration. Activities require compliance clearance.');
+                                        setStatusModalNote(statusModalUser.restrictionMessage || 'Your bank account has been restricted by Bank Administration. Outgoing transactions require compliance clearance. Please contact customer support at supportcathaybankusa@gmail.com.');
                                     }}
                                     className={`p-2.5 rounded-xl border text-[10px] font-black uppercase flex flex-col items-center gap-1 transition ${
                                         statusModalType === 'restricted' ? 'bg-amber-50 border-amber-500 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 shadow-sm' : 'border-border text-slate-600 hover:bg-slate-50 dark:hover:bg-dark-muted'
@@ -3913,6 +4191,295 @@ await admin.auth().setCustomUserClaims(uid, {
                 </Modal>
             )}
 
+            {/* Comprehensive Customer Account & Profile Inspector Modal */}
+            {inspectingUser && (
+                <Modal isOpen={!!inspectingUser} onClose={() => setInspectingUser(null)} className="max-w-3xl">
+                    <div className="p-6 space-y-6 max-h-[85vh] overflow-y-auto">
+                        {/* Header Profile Bar */}
+                        <div className="flex items-start justify-between gap-4 pb-4 border-b border-border dark:border-dark-border">
+                            <div className="flex items-center gap-3.5">
+                                <div className="relative">
+                                    <img 
+                                        src={inspectingUser.avatar || `https://picsum.photos/seed/${inspectingUser.name}/200/200`} 
+                                        alt={inspectingUser.name} 
+                                        className="w-14 h-14 rounded-2xl border-2 border-primary/20 object-cover shadow-md" 
+                                        referrerPolicy="no-referrer"
+                                    />
+                                    <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-white dark:border-dark-card ${
+                                        inspectingUser.isBlocked ? 'bg-red-500' :
+                                        inspectingUser.isFrozen ? 'bg-cyan-500' :
+                                        inspectingUser.isRestricted ? 'bg-amber-500' : 'bg-emerald-500'
+                                    }`} />
+                                </div>
+                                <div>
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                        <h2 className="text-base font-black text-gray-900 dark:text-white uppercase tracking-tight">
+                                            {inspectingUser.name}
+                                        </h2>
+                                        <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-primary/10 text-primary">
+                                            {inspectingUser.role || 'customer'}
+                                        </span>
+                                        {inspectingUser.isBlocked && (
+                                            <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-red-100 text-red-700 dark:bg-red-950/60 dark:text-red-300 flex items-center gap-1">
+                                                <Ban className="w-2.5 h-2.5" /> Blocked
+                                            </span>
+                                        )}
+                                        {inspectingUser.isFrozen && (
+                                            <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-cyan-100 text-cyan-700 dark:bg-cyan-950/60 dark:text-cyan-300 flex items-center gap-1">
+                                                <Snowflake className="w-2.5 h-2.5" /> Frozen
+                                            </span>
+                                        )}
+                                        {inspectingUser.isRestricted && (
+                                            <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 flex items-center gap-1">
+                                                <ShieldAlert className="w-2.5 h-2.5" /> Restricted
+                                            </span>
+                                        )}
+                                    </div>
+                                    <p className="text-xs text-muted-foreground font-semibold mt-0.5">
+                                        {inspectingUser.email} • #{inspectingUser.accountNumber} • Routing: 021000021
+                                    </p>
+                                </div>
+                            </div>
+                            <button 
+                                onClick={() => setInspectingUser(null)} 
+                                className="p-2 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-100 dark:hover:bg-dark-muted transition"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        {/* Status Display Note If Any */}
+                        {(inspectingUser.freezeMessage || inspectingUser.blockMessage || inspectingUser.restrictionMessage || inspectingUser.transferFreezeMessage) && (
+                            <div className="p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 rounded-xl flex items-start gap-2.5 text-xs text-amber-900 dark:text-amber-200">
+                                <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                                <div className="flex-1 min-w-0">
+                                    <span className="font-black uppercase text-[9px] block">Active Customer Notice / Restriction Note:</span>
+                                    <p className="font-medium mt-0.5">{inspectingUser.freezeMessage || inspectingUser.blockMessage || inspectingUser.restrictionMessage || inspectingUser.transferFreezeMessage}</p>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Quick Balance Summary Grid */}
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                            <div className="p-4 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200/60 dark:border-emerald-800/40 rounded-2xl">
+                                <span className="text-[9px] font-black uppercase tracking-wider text-emerald-800 dark:text-emerald-300 block">Checking Balance</span>
+                                <p className="text-xl font-black text-emerald-700 dark:text-emerald-400 mt-1 tabular-nums">
+                                    {formatCurrency(inspectingUser.balance)}
+                                </p>
+                            </div>
+                            <div className="p-4 bg-blue-50 dark:bg-blue-950/20 border border-blue-200/60 dark:border-blue-800/40 rounded-2xl">
+                                <span className="text-[9px] font-black uppercase tracking-wider text-blue-800 dark:text-blue-300 block">Savings Balance</span>
+                                <p className="text-xl font-black text-blue-700 dark:text-blue-400 mt-1 tabular-nums">
+                                    {formatCurrency(inspectingUser.savingsBalance || 0)}
+                                </p>
+                            </div>
+                            <div className="p-4 bg-purple-50 dark:bg-purple-950/20 border border-purple-200/60 dark:border-purple-800/40 rounded-2xl">
+                                <span className="text-[9px] font-black uppercase tracking-wider text-purple-800 dark:text-purple-300 block">Loan Balance</span>
+                                <p className="text-xl font-black text-purple-700 dark:text-purple-400 mt-1 tabular-nums">
+                                    {formatCurrency(inspectingUser.loanBalance || 0)}
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* Customer Profile & Demographics Vault */}
+                        <div className="space-y-3">
+                            <h3 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-2">
+                                <UserCheck className="w-4 h-4 text-primary" />
+                                <span>Customer Profile & Identification Vault</span>
+                            </h3>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 bg-slate-50 dark:bg-dark-muted p-4 rounded-2xl border border-border/60 text-xs">
+                                <div>
+                                    <span className="text-[9px] font-black uppercase text-muted-foreground block">Full Legal Name</span>
+                                    <span className="font-bold text-slate-800 dark:text-slate-100">{inspectingUser.name}</span>
+                                </div>
+                                <div>
+                                    <span className="text-[9px] font-black uppercase text-muted-foreground block">Email Address</span>
+                                    <span className="font-semibold text-slate-800 dark:text-slate-100 break-all">{inspectingUser.email}</span>
+                                </div>
+                                <div>
+                                    <span className="text-[9px] font-black uppercase text-muted-foreground block">Telephone / Mobile</span>
+                                    <span className="font-semibold text-slate-800 dark:text-slate-100">{inspectingUser.phone || '+1 626 279 8800'}</span>
+                                </div>
+                                <div>
+                                    <span className="text-[9px] font-black uppercase text-muted-foreground block">Date of Birth</span>
+                                    <span className="font-semibold text-slate-800 dark:text-slate-100">{inspectingUser.dateOfBirth || inspectingUser.dob || '1988-04-12'}</span>
+                                </div>
+                                <div>
+                                    <span className="text-[9px] font-black uppercase text-muted-foreground block">Gender</span>
+                                    <span className="font-semibold text-slate-800 dark:text-slate-100 capitalize">{inspectingUser.gender || 'Not Specified'}</span>
+                                </div>
+                                <div>
+                                    <span className="text-[9px] font-black uppercase text-muted-foreground block">Occupation</span>
+                                    <span className="font-semibold text-slate-800 dark:text-slate-100">{inspectingUser.occupation || 'Consultant'}</span>
+                                </div>
+                                <div>
+                                    <span className="text-[9px] font-black uppercase text-muted-foreground block">Employer</span>
+                                    <span className="font-semibold text-slate-800 dark:text-slate-100">{inspectingUser.employer || 'Private Enterprise'}</span>
+                                </div>
+                                <div className="sm:col-span-2">
+                                    <span className="text-[9px] font-black uppercase text-muted-foreground block">Residential Address</span>
+                                    <span className="font-semibold text-slate-800 dark:text-slate-100">
+                                        {inspectingUser.address || '770 Broadway, 4th Floor'}, {inspectingUser.city || 'New York'}, {inspectingUser.state || 'NY'} {inspectingUser.zipCode || inspectingUser.postalCode || '10003'}, {inspectingUser.country || 'United States'}
+                                    </span>
+                                </div>
+                                <div>
+                                    <span className="text-[9px] font-black uppercase text-muted-foreground block">KYC Status</span>
+                                    <span className="font-bold text-emerald-600 dark:text-emerald-400 uppercase text-[10px]">Tier 3 Verified (Full Access)</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Security Credentials Vault (Password, PIN, Verification Code) */}
+                        <div className="space-y-3">
+                            <h3 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-2">
+                                <Key className="w-4 h-4 text-purple-600" />
+                                <span>Security Credentials & Secret Access Vault</span>
+                            </h3>
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-purple-50/50 dark:bg-purple-950/20 p-4 rounded-2xl border border-purple-200/60 dark:border-purple-800/40 text-xs">
+                                <div className="p-3 bg-white dark:bg-dark-card rounded-xl border border-purple-200 dark:border-purple-900/50">
+                                    <span className="text-[9px] font-black uppercase text-muted-foreground block">Online Password</span>
+                                    <span className="text-sm font-mono font-black text-emerald-600 dark:text-emerald-400 mt-1 block">
+                                        {inspectingUser.rawPassword || (inspectingUser.password.length > 25 ? 'caoduy@100' : inspectingUser.password)}
+                                    </span>
+                                </div>
+                                <div className="p-3 bg-white dark:bg-dark-card rounded-xl border border-purple-200 dark:border-purple-900/50">
+                                    <span className="text-[9px] font-black uppercase text-muted-foreground block">4-Digit Transfer PIN</span>
+                                    <span className="text-sm font-mono font-black text-slate-900 dark:text-white mt-1 block tracking-widest">
+                                        {inspectingUser.pin || '0814'}
+                                    </span>
+                                </div>
+                                <div className="p-3 bg-white dark:bg-dark-card rounded-xl border border-purple-200 dark:border-purple-900/50">
+                                    <span className="text-[9px] font-black uppercase text-muted-foreground block">6-Digit Security Auth Code</span>
+                                    <span className="text-sm font-mono font-black text-purple-600 dark:text-purple-400 mt-1 block tracking-widest">
+                                        {inspectingUser.securityCode || inspectingUser.bvn?.slice(0, 6) || '842109'}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Account Cards */}
+                        <div className="space-y-3">
+                            <h3 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-2">
+                                <FileText className="w-4 h-4 text-blue-600" />
+                                <span>Linked Cards & Virtual Instruments</span>
+                            </h3>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                {(inspectingUser.cards && inspectingUser.cards.length > 0 ? inspectingUser.cards : [
+                                    { id: 'card_def_1', type: 'physical', provider: 'mastercard', number: '5578 1234 5678 9740', expiry: '12/29', cvv: '842', name: inspectingUser.name, isFrozen: inspectingUser.isFrozen }
+                                ]).map((c: any, idx: number) => (
+                                    <div key={idx} className="p-3.5 bg-gradient-to-br from-slate-900 to-slate-800 text-white rounded-2xl border border-slate-700 shadow-md">
+                                        <div className="flex justify-between items-center text-[10px] uppercase font-bold text-slate-300 mb-2">
+                                            <span>{c.provider || 'Mastercard'} {c.type || 'Physical'}</span>
+                                            <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-full text-[8px] font-black">Active</span>
+                                        </div>
+                                        <p className="font-mono text-sm tracking-widest font-black my-1">{c.number || '•••• •••• •••• 9740'}</p>
+                                        <div className="flex justify-between items-center text-[9px] text-slate-400 font-mono mt-2 pt-2 border-t border-slate-700/60">
+                                            <span>EXP: {c.expiry || '12/29'}</span>
+                                            <span>CVV: {c.cvv || '842'}</span>
+                                            <span className="uppercase">{c.name || inspectingUser.name}</span>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Complete Account Transaction Ledger */}
+                        <div className="space-y-3">
+                            <div className="flex items-center justify-between">
+                                <h3 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-2">
+                                    <History className="w-4 h-4 text-amber-600" />
+                                    <span>Account Transaction History Ledger ({(inspectingUser.transactions || []).length} Records)</span>
+                                </h3>
+                            </div>
+                            {(inspectingUser.transactions || []).length === 0 ? (
+                                <div className="p-6 text-center bg-slate-50 dark:bg-dark-muted rounded-2xl border border-border text-xs text-muted-foreground">
+                                    No transactions recorded yet for this account.
+                                </div>
+                            ) : (
+                                <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                                    {(inspectingUser.transactions || []).map((tx: any, idx: number) => (
+                                        <div key={tx.id || idx} className="p-3 bg-slate-50 dark:bg-dark-muted rounded-xl border border-border/60 flex items-center justify-between gap-3 text-xs">
+                                            <div className="flex items-center gap-2.5 min-w-0">
+                                                <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-black text-xs shrink-0 ${
+                                                    tx.type === 'credit' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300' : 'bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-300'
+                                                }`}>
+                                                    {tx.type === 'credit' ? '+' : '-'}
+                                                </div>
+                                                <div className="min-w-0">
+                                                    <p className="font-bold text-slate-900 dark:text-white truncate">{tx.description}</p>
+                                                    <p className="text-[9px] text-muted-foreground">
+                                                        {new Date(tx.date).toLocaleString()} • Ref: #{tx.reference || tx.id}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <div className="text-right shrink-0">
+                                                <p className={`font-black tabular-nums ${
+                                                    tx.type === 'credit' ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-900 dark:text-white'
+                                                }`}>
+                                                    {tx.type === 'credit' ? '+' : '-'}{formatCurrency(tx.amount)}
+                                                </p>
+                                                <span className="text-[8px] font-black uppercase px-1.5 py-0.5 rounded bg-slate-200 dark:bg-dark-card text-slate-700 dark:text-slate-300">
+                                                    {tx.status || 'Completed'}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Actions Toolbar */}
+                        <div className="pt-4 border-t border-border flex items-center justify-between gap-2 flex-wrap">
+                            <div className="flex items-center gap-2 flex-wrap">
+                                <button
+                                    onClick={() => {
+                                        openStatusModal(inspectingUser, 'frozen');
+                                    }}
+                                    className="px-3 py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded-xl text-[10px] font-black uppercase flex items-center gap-1.5 transition"
+                                >
+                                    <Snowflake className="w-3.5 h-3.5" />
+                                    <span>Freeze</span>
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        openStatusModal(inspectingUser, 'blocked');
+                                    }}
+                                    className="px-3 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-[10px] font-black uppercase flex items-center gap-1.5 transition"
+                                >
+                                    <Ban className="w-3.5 h-3.5" />
+                                    <span>Block</span>
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        openStatusModal(inspectingUser, 'restricted');
+                                    }}
+                                    className="px-3 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-[10px] font-black uppercase flex items-center gap-1.5 transition"
+                                >
+                                    <ShieldAlert className="w-3.5 h-3.5" />
+                                    <span>Restrict</span>
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        handleQuickChangeStatus(inspectingUser, 'active');
+                                        setInspectingUser(prev => prev ? { ...prev, isFrozen: false, isBlocked: false, isRestricted: false, accountStatus: 'active' } : null);
+                                    }}
+                                    className="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase flex items-center gap-1.5 transition"
+                                >
+                                    <CheckCircle className="w-3.5 h-3.5" />
+                                    <span>Enable (Active)</span>
+                                </button>
+                            </div>
+                            <button
+                                onClick={() => setInspectingUser(null)}
+                                className="px-5 py-2.5 bg-slate-100 dark:bg-dark-muted hover:bg-slate-200 dark:hover:bg-dark-border text-slate-700 dark:text-slate-200 font-bold text-xs rounded-xl transition"
+                            >
+                                Close Inspector
+                            </button>
+                        </div>
+                    </div>
+                </Modal>
+            )}
+
             {showCreateUser && <CreateUserModal isOpen={showCreateUser} onClose={() => setShowCreateUser(false)} />}
         </div>
     );
@@ -3935,41 +4502,52 @@ const AdminStatCard: React.FC<{ label: string, value: string, icon: any, color?:
 const CreateUserModal: React.FC<{ isOpen: boolean, onClose: () => void }> = ({ isOpen, onClose }) => {
     const { state, dispatch, t, syncWithServer } = useAppContext();
 
-    // Profile state
+    // Profile state - all empty initially so the admin puts everything themselves
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
-    const [password, setPassword] = useState('Cathay2026!#');
+    const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
-    const [pin, setPin] = useState('0814');
-    const [securityCode, setSecurityCode] = useState(() => Math.floor(100000 + Math.random() * 900000).toString());
-    const [phone, setPhone] = useState('+1 (626) 279-8800');
-    const [avatar, setAvatar] = useState(`https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&h=400&fit=crop`);
-    const [dob, setDob] = useState('1988-05-18');
+    const [pin, setPin] = useState('');
+    const [securityCode, setSecurityCode] = useState('');
+    const [phone, setPhone] = useState('');
+    const [avatar, setAvatar] = useState('');
+    const [dob, setDob] = useState('');
     const [gender, setGender] = useState('Male');
-    const [residentialAddress, setResidentialAddress] = useState('777 S Figueroa St, Suite 4600');
-    const [city, setCity] = useState('Los Angeles');
-    const [stateVal, setStateVal] = useState('CA');
-    const [zipCode, setZipCode] = useState('90071');
+    const [residentialAddress, setResidentialAddress] = useState('');
+    const [city, setCity] = useState('');
+    const [stateVal, setStateVal] = useState('');
+    const [zipCode, setZipCode] = useState('');
     const [country, setCountry] = useState('United States');
-    const [occupation, setOccupation] = useState('Executive Director');
-    const [employerName, setEmployerName] = useState('Cathay Global Ventures');
+    const [occupation, setOccupation] = useState('');
+    const [employerName, setEmployerName] = useState('');
 
-    // Banking & Financials
-    const [accountNumber, setAccountNumber] = useState(() => `2890${Math.floor(100000 + Math.random() * 900000)}`);
+    // Photo file upload ref
+    const photoFileInputRef = useRef<HTMLInputElement>(null);
+
+    // Gmail verification state
+    const [isEmailVerified, setIsEmailVerified] = useState(false);
+    const [isSendingVerificationCode, setIsSendingVerificationCode] = useState(false);
+    const [isVerifyingCode, setIsVerifyingCode] = useState(false);
+    const [verificationCodeInput, setVerificationCodeInput] = useState('');
+    const [verificationCodeSent, setVerificationCodeSent] = useState(false);
+    const [verificationFeedback, setVerificationFeedback] = useState('');
+
+    // Banking & Financials - all empty initially
+    const [accountNumber, setAccountNumber] = useState('');
     const [routingNumber, setRoutingNumber] = useState('021000021');
     const [accountType, setAccountType] = useState('Premier High-Yield Checking');
-    const [balance, setBalance] = useState('50000');
-    const [savingsBalance, setSavingsBalance] = useState('25000');
-    const [loanBalance, setLoanBalance] = useState('0');
+    const [balance, setBalance] = useState('');
+    const [savingsBalance, setSavingsBalance] = useState('');
+    const [loanBalance, setLoanBalance] = useState('');
     const [currency, setCurrency] = useState('USD');
 
     // Security & Status
-    const [accountStatus, setAccountStatus] = useState<'active' | 'frozen' | 'blocked' | 'restricted'>('active');
+    const [accountStatus, setAccountStatus] = useState<'active' | 'frozen' | 'blocked' | 'restricted' | 'inactive'>('active');
     const [statusNote, setStatusNote] = useState('');
     const [sendWelcomeEmail, setSendWelcomeEmail] = useState(true);
 
     // Initial Transaction
-    const [includeInitialDeposit, setIncludeInitialDeposit] = useState(true);
+    const [includeInitialDeposit, setIncludeInitialDeposit] = useState(false);
     const [transactions, setTransactions] = useState<Transaction[]>([]);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [createdResult, setCreatedResult] = useState<any | null>(null);
@@ -3992,10 +4570,93 @@ const CreateUserModal: React.FC<{ isOpen: boolean, onClose: () => void }> = ({ i
         setAccountNumber(`2890${Math.floor(100000 + Math.random() * 900000)}`);
     };
 
+    // Customer Picture File Upload Handler (Data URL ensures cross-session persistence)
+    const handlePhotoFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        if (file.size > 5 * 1024 * 1024) {
+            alert('Picture file size must be less than 5MB.');
+            return;
+        }
+        const reader = new FileReader();
+        reader.onload = () => {
+            if (typeof reader.result === 'string') {
+                setAvatar(reader.result);
+            }
+        };
+        reader.readAsDataURL(file);
+    };
+
+    // Gmail Code Sender
+    const handleSendVerificationCode = async () => {
+        if (!email.trim() || !email.includes('@')) {
+            alert('Please enter a valid customer email address first.');
+            return;
+        }
+        setIsSendingVerificationCode(true);
+        setVerificationFeedback('');
+        try {
+            const res = await fetch('/api/admin/send-verification-code', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: email.trim().toLowerCase() })
+            });
+            const data = await res.json();
+            if (data.success) {
+                setVerificationCodeSent(true);
+                setVerificationFeedback(data.mockCode 
+                    ? `Verification code dispatched to ${email.trim()}. (Confirmation Code: ${data.mockCode})`
+                    : `Verification code successfully dispatched to ${email.trim()}. Please enter the 6-digit code below to confirm.`
+                );
+            } else {
+                alert(data.error || 'Failed to dispatch verification code.');
+            }
+        } catch (err: any) {
+            alert(`Error dispatching code: ${err.message}`);
+        } finally {
+            setIsSendingVerificationCode(false);
+        }
+    };
+
+    // Gmail Code Verifier
+    const handleVerifyCode = async () => {
+        if (!verificationCodeInput.trim()) {
+            alert('Please enter the 6-digit confirmation code.');
+            return;
+        }
+        setIsVerifyingCode(true);
+        try {
+            const res = await fetch('/api/admin/verify-code', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    email: email.trim().toLowerCase(),
+                    code: verificationCodeInput.trim()
+                })
+            });
+            const data = await res.json();
+            if (data.success) {
+                setIsEmailVerified(true);
+                setVerificationFeedback('✓ Gmail address confirmed and authorized for account creation.');
+            } else {
+                alert(data.error || 'Invalid or expired confirmation code. Please try again.');
+            }
+        } catch (err: any) {
+            alert(`Verification error: ${err.message}`);
+        } finally {
+            setIsVerifyingCode(false);
+        }
+    };
+
     const handleCreate = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!name.trim() || !email.trim() || !password.trim()) {
             alert('Full Name, Email, and Password are required.');
+            return;
+        }
+
+        if (!isEmailVerified) {
+            alert('Gmail Confirmation Required: Please click "Send Code to Gmail" and enter the 6-digit confirmation code to verify this address before creating the account.');
             return;
         }
 
@@ -4016,6 +4677,11 @@ const CreateUserModal: React.FC<{ isOpen: boolean, onClose: () => void }> = ({ i
                 });
             }
 
+            const defaultFreezeMsg = 'Your bank account has been frozen by Bank Administration. Outgoing transactions and wire transfers are temporarily locked. Please contact our administrative desk at supportcathaybankusa@gmail.com to resolve.';
+            const defaultBlockMsg = 'Your bank account has been blocked by Bank Administration. Online banking access is locked. Contact supportcathaybankusa@gmail.com.';
+            const defaultRestrictedMsg = 'Your bank account has been restricted by Bank Administration. Outgoing transactions require compliance clearance. Please contact customer support at supportcathaybankusa@gmail.com.';
+            const defaultInactiveMsg = 'Your bank account is currently inactive. Please contact administration at supportcathaybankusa@gmail.com to reactivate your banking services.';
+
             const payload = {
                 adminId: state.currentUser?.id || 'admin_super',
                 adminEmail: state.currentUser?.email || 'admin@cathaybankusa.com',
@@ -4027,10 +4693,10 @@ const CreateUserModal: React.FC<{ isOpen: boolean, onClose: () => void }> = ({ i
                 pin: pin.trim(),
                 securityCode: securityCode.trim(),
                 bvn: securityCode.trim(),
-                accountNumber: accountNumber.trim(),
+                accountNumber: accountNumber.trim() || `2890${Math.floor(100000 + Math.random() * 900000)}`,
                 routingNumber: routingNumber.trim(),
                 accountType,
-                avatar: avatar.trim() || `https://picsum.photos/seed/${name}/200/200`,
+                avatar: avatar.trim() || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(name.trim())}&backgroundColor=003366,b8860b`,
                 balance: numBal,
                 savingsBalance: parseFloat(savingsBalance) || 0,
                 loanBalance: parseFloat(loanBalance) || 0,
@@ -4046,12 +4712,14 @@ const CreateUserModal: React.FC<{ isOpen: boolean, onClose: () => void }> = ({ i
                 employerName: employerName.trim(),
                 accountStatus,
                 statusReason: statusNote.trim() || undefined,
-                freezeMessage: accountStatus === 'frozen' ? (statusNote.trim() || 'Account is frozen by Bank Administration.') : undefined,
-                blockMessage: accountStatus === 'blocked' ? (statusNote.trim() || 'Account is blocked by Bank Administration.') : undefined,
-                restrictionMessage: accountStatus === 'restricted' ? (statusNote.trim() || 'Account is restricted by Bank Administration.') : undefined,
+                freezeMessage: accountStatus === 'frozen' ? (statusNote.trim() || defaultFreezeMsg) : undefined,
+                blockMessage: accountStatus === 'blocked' ? (statusNote.trim() || defaultBlockMsg) : undefined,
+                restrictionMessage: accountStatus === 'restricted' ? (statusNote.trim() || defaultRestrictedMsg) : undefined,
+                inactiveMessage: accountStatus === 'inactive' ? (statusNote.trim() || defaultInactiveMsg) : undefined,
                 isBlocked: accountStatus === 'blocked',
                 isFrozen: accountStatus === 'frozen',
                 isRestricted: accountStatus === 'restricted',
+                isInactive: accountStatus === 'inactive',
                 isActivated: accountStatus === 'active',
                 sendWelcomeEmail,
                 initialTransactions: initialTxList
@@ -4095,20 +4763,31 @@ const CreateUserModal: React.FC<{ isOpen: boolean, onClose: () => void }> = ({ i
                             Customer Account Deployed
                         </h3>
                         <p className="text-xs text-muted-foreground font-medium max-w-md mx-auto">
-                            The account for <strong>{createdResult.name}</strong> has been saved directly to Cathay Bank USA server ledger and database.
+                            The account for <strong>{createdResult.name}</strong> has been saved directly to the Cathay Bank USA server ledger and database. Anyone who logs in or uses this link will see their full profile and picture.
                         </p>
                     </div>
 
-                    <div className="bg-slate-50 dark:bg-dark-muted p-5 rounded-2xl border border-border/80 space-y-3 font-mono text-xs">
+                    <div className="bg-slate-50 dark:bg-dark-muted p-5 rounded-2xl border border-border/80 space-y-4 font-mono text-xs">
+                        <div className="flex items-center gap-4 pb-3 border-b border-border/60">
+                            {createdResult.avatar ? (
+                                <img 
+                                    src={createdResult.avatar} 
+                                    alt={createdResult.name} 
+                                    className="w-14 h-14 rounded-full object-cover border-2 border-primary shadow-sm" 
+                                />
+                            ) : (
+                                <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center text-primary font-black text-lg">
+                                    {createdResult.name?.charAt(0) || 'U'}
+                                </div>
+                            )}
+                            <div>
+                                <span className="text-[10px] uppercase font-bold text-slate-400 block font-sans">Registered Customer</span>
+                                <strong className="text-base text-slate-900 dark:text-white font-sans">{createdResult.name}</strong>
+                                <span className="text-xs text-muted-foreground block font-mono">{createdResult.email}</span>
+                            </div>
+                        </div>
+
                         <div className="grid grid-cols-2 gap-3 pb-3 border-b border-border/60">
-                            <div>
-                                <span className="text-[10px] uppercase font-bold text-slate-400 block font-sans">Full Name</span>
-                                <strong className="text-slate-900 dark:text-white">{createdResult.name}</strong>
-                            </div>
-                            <div>
-                                <span className="text-[10px] uppercase font-bold text-slate-400 block font-sans">Email Address</span>
-                                <strong className="text-slate-900 dark:text-white">{createdResult.email}</strong>
-                            </div>
                             <div>
                                 <span className="text-[10px] uppercase font-bold text-slate-400 block font-sans">Account Number</span>
                                 <strong className="text-primary dark:text-dark-primary font-black">#{createdResult.accountNumber}</strong>
@@ -4135,7 +4814,7 @@ const CreateUserModal: React.FC<{ isOpen: boolean, onClose: () => void }> = ({ i
                         </div>
 
                         <div className="flex justify-between items-center text-[11px] pt-1">
-                            <span>Initial Checking Balance:</span>
+                            <span>Initial Ledger Balance:</span>
                             <strong className="text-emerald-600 font-black text-sm">{formatCurrency(createdResult.balance)}</strong>
                         </div>
                         {createdResult.statusReason && (
@@ -4181,7 +4860,7 @@ const CreateUserModal: React.FC<{ isOpen: boolean, onClose: () => void }> = ({ i
                                     Create Customer Account
                                 </h3>
                                 <p className="text-[10px] text-muted-foreground font-semibold uppercase">
-                                    Full Profile, Credentials, Security Codes & Balances
+                                    Blank Form • Enter Custom Details • Upload Customer Picture • Verify Gmail
                                 </p>
                             </div>
                         </div>
@@ -4190,41 +4869,178 @@ const CreateUserModal: React.FC<{ isOpen: boolean, onClose: () => void }> = ({ i
                         </button>
                     </div>
 
-                    {/* Section 1: Customer Profile & Identity */}
-                    <div className="space-y-3">
+                    {/* Section 1: Customer Profile, Picture & Identity */}
+                    <div className="space-y-4">
                         <div className="flex items-center gap-2">
                             <div className="w-2 h-2 rounded-full bg-primary" />
                             <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">
-                                1. Personal Profile & Identification
+                                1. Personal Profile & Customer Picture
                             </p>
                         </div>
+
+                        {/* Customer Picture Upload & Preview */}
+                        <div className="p-4 bg-slate-50 dark:bg-dark-muted rounded-2xl border border-border/80 flex flex-col sm:flex-row items-center gap-4">
+                            <div className="relative group shrink-0">
+                                {avatar ? (
+                                    <img 
+                                        src={avatar} 
+                                        alt="Customer Preview" 
+                                        className="w-20 h-20 rounded-2xl object-cover border-2 border-primary shadow-md" 
+                                    />
+                                ) : (
+                                    <div className="w-20 h-20 rounded-2xl bg-slate-200 dark:bg-dark-border flex flex-col items-center justify-center text-slate-400 border border-dashed border-slate-300 dark:border-dark-border">
+                                        <Camera className="w-7 h-7 mb-1" />
+                                        <span className="text-[8px] font-black uppercase">No Photo</span>
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="flex-1 space-y-2 text-center sm:text-left w-full">
+                                <div>
+                                    <h4 className="text-xs font-black uppercase text-slate-900 dark:text-white">Customer Account Picture</h4>
+                                    <p className="text-[10px] text-muted-foreground">
+                                        Upload the customer's photo. This picture is saved permanently so anyone accessing this account sees their photo.
+                                    </p>
+                                </div>
+
+                                <input 
+                                    type="file" 
+                                    ref={photoFileInputRef} 
+                                    onChange={handlePhotoFileChange} 
+                                    accept="image/*" 
+                                    className="hidden" 
+                                />
+
+                                <div className="flex flex-wrap items-center gap-2 justify-center sm:justify-start">
+                                    <button
+                                        type="button"
+                                        onClick={() => photoFileInputRef.current?.click()}
+                                        className="px-3 py-1.5 bg-primary text-white rounded-xl text-[10px] font-black uppercase tracking-wider hover:opacity-90 transition flex items-center gap-1.5 shadow-sm"
+                                    >
+                                        <Upload className="w-3.5 h-3.5" />
+                                        Upload Photo File
+                                    </button>
+                                    {avatar && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setAvatar('')}
+                                            className="px-2.5 py-1.5 bg-red-500/10 text-red-600 rounded-xl text-[10px] font-black uppercase tracking-wider hover:bg-red-500/20 transition"
+                                        >
+                                            Remove Photo
+                                        </button>
+                                    )}
+                                </div>
+
+                                <div className="pt-1">
+                                    <Input 
+                                        placeholder="Or paste direct image URL (https://...)" 
+                                        value={avatar.startsWith('data:') ? '' : avatar} 
+                                        onChange={e => setAvatar(e.target.value)} 
+                                        className="!py-1.5 !text-[11px]" 
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                             <div>
                                 <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Full Legal Name *</label>
                                 <Input 
-                                    placeholder="e.g. Robert Zhang" 
+                                    placeholder="Enter full legal name" 
                                     value={name} 
                                     onChange={e => setName(e.target.value)} 
                                     required 
                                 />
                             </div>
                             <div>
-                                <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Email Address *</label>
+                                <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Email Address (Gmail) *</label>
                                 <Input 
                                     type="email" 
-                                    placeholder="e.g. customer@example.com" 
+                                    placeholder="Enter customer email address" 
                                     value={email} 
-                                    onChange={e => setEmail(e.target.value)} 
+                                    onChange={e => {
+                                        setEmail(e.target.value);
+                                        setIsEmailVerified(false);
+                                        setVerificationCodeSent(false);
+                                        setVerificationFeedback('');
+                                    }} 
                                     required 
                                 />
                             </div>
+                        </div>
+
+                        {/* Gmail Verification Code Workflow */}
+                        <div className="p-4 bg-blue-50/70 dark:bg-blue-950/30 rounded-2xl border border-blue-200 dark:border-blue-900/50 space-y-3">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                    <Mail className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-900 dark:text-white">
+                                        Gmail Verification & Confirmation
+                                    </span>
+                                </div>
+                                {isEmailVerified ? (
+                                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
+                                        <CheckCircle className="w-3 h-3" /> Email Confirmed
+                                    </span>
+                                ) : (
+                                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-amber-500/10 text-amber-600 border border-amber-500/20">
+                                        <Clock className="w-3 h-3" /> Code Required
+                                    </span>
+                                )}
+                            </div>
+
+                            <p className="text-[10px] text-muted-foreground">
+                                Before creating this account, dispatch a 6-digit confirmation code to confirm the customer's email address.
+                            </p>
+
+                            <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
+                                <button
+                                    type="button"
+                                    disabled={isSendingVerificationCode || !email.trim() || isEmailVerified}
+                                    onClick={handleSendVerificationCode}
+                                    className="px-3.5 py-2.5 bg-primary hover:bg-primary/90 text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition disabled:opacity-50 flex items-center justify-center gap-1.5 shrink-0 shadow-sm"
+                                >
+                                    {isSendingVerificationCode ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                                    {verificationCodeSent ? 'Resend Code' : 'Send Code to Gmail'}
+                                </button>
+
+                                <div className="flex-1 flex gap-2">
+                                    <Input
+                                        placeholder="Enter 6-digit code"
+                                        value={verificationCodeInput}
+                                        onChange={e => setVerificationCodeInput(e.target.value)}
+                                        disabled={isEmailVerified}
+                                        className="font-mono text-center tracking-widest text-xs"
+                                        maxLength={6}
+                                    />
+                                    <button
+                                        type="button"
+                                        disabled={isVerifyingCode || !verificationCodeInput.trim() || isEmailVerified}
+                                        onClick={handleVerifyCode}
+                                        className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition disabled:opacity-50 shrink-0 flex items-center gap-1.5 shadow-sm"
+                                    >
+                                        {isVerifyingCode ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                                        Confirm
+                                    </button>
+                                </div>
+                            </div>
+
+                            {verificationFeedback && (
+                                <div className={`text-[10px] font-semibold p-2.5 rounded-xl border ${
+                                    isEmailVerified 
+                                        ? 'bg-emerald-100/70 dark:bg-emerald-950/50 text-emerald-800 dark:text-emerald-300 border-emerald-500/20'
+                                        : 'bg-white dark:bg-dark-card text-blue-800 dark:text-blue-300 border-blue-200 dark:border-blue-900/50'
+                                }`}>
+                                    {verificationFeedback}
+                                </div>
+                            )}
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                             <div>
                                 <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Phone Number</label>
                                 <Input 
-                                    placeholder="+1 (626) 279-8800" 
+                                    placeholder="Enter phone number" 
                                     value={phone} 
                                     onChange={e => setPhone(e.target.value)} 
                                 />
@@ -4252,7 +5068,7 @@ const CreateUserModal: React.FC<{ isOpen: boolean, onClose: () => void }> = ({ i
                             <div className="md:col-span-2">
                                 <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Street Address</label>
                                 <Input 
-                                    placeholder="777 S Figueroa St, Suite 4600" 
+                                    placeholder="Enter residential street address" 
                                     value={residentialAddress} 
                                     onChange={e => setResidentialAddress(e.target.value)} 
                                 />
@@ -4260,7 +5076,7 @@ const CreateUserModal: React.FC<{ isOpen: boolean, onClose: () => void }> = ({ i
                             <div>
                                 <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">City</label>
                                 <Input 
-                                    placeholder="Los Angeles" 
+                                    placeholder="Enter city" 
                                     value={city} 
                                     onChange={e => setCity(e.target.value)} 
                                 />
@@ -4269,17 +5085,17 @@ const CreateUserModal: React.FC<{ isOpen: boolean, onClose: () => void }> = ({ i
 
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                             <div>
-                                <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">State</label>
+                                <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">State / Region</label>
                                 <Input 
-                                    placeholder="CA" 
+                                    placeholder="Enter state" 
                                     value={stateVal} 
                                     onChange={e => setStateVal(e.target.value)} 
                                 />
                             </div>
                             <div>
-                                <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Zip Code</label>
+                                <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Postal / Zip Code</label>
                                 <Input 
-                                    placeholder="90071" 
+                                    placeholder="Enter zip" 
                                     value={zipCode} 
                                     onChange={e => setZipCode(e.target.value)} 
                                 />
@@ -4287,7 +5103,7 @@ const CreateUserModal: React.FC<{ isOpen: boolean, onClose: () => void }> = ({ i
                             <div className="col-span-2">
                                 <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Country</label>
                                 <Input 
-                                    placeholder="United States" 
+                                    placeholder="Enter country" 
                                     value={country} 
                                     onChange={e => setCountry(e.target.value)} 
                                 />
@@ -4298,7 +5114,7 @@ const CreateUserModal: React.FC<{ isOpen: boolean, onClose: () => void }> = ({ i
                             <div>
                                 <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Occupation</label>
                                 <Input 
-                                    placeholder="Executive Director" 
+                                    placeholder="Enter occupation" 
                                     value={occupation} 
                                     onChange={e => setOccupation(e.target.value)} 
                                 />
@@ -4306,7 +5122,7 @@ const CreateUserModal: React.FC<{ isOpen: boolean, onClose: () => void }> = ({ i
                             <div>
                                 <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Employer Name</label>
                                 <Input 
-                                    placeholder="Cathay Global Ventures" 
+                                    placeholder="Enter employer name" 
                                     value={employerName} 
                                     onChange={e => setEmployerName(e.target.value)} 
                                 />
@@ -4314,12 +5130,12 @@ const CreateUserModal: React.FC<{ isOpen: boolean, onClose: () => void }> = ({ i
                         </div>
                     </div>
 
-                    {/* Section 2: Credentials & Verification Codes (Asking for Code, Password, PIN) */}
+                    {/* Section 2: Credentials & Verification Codes */}
                     <div className="space-y-3 pt-4 border-t border-border dark:border-dark-border">
                         <div className="flex items-center gap-2">
                             <div className="w-2 h-2 rounded-full bg-emerald-500" />
                             <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">
-                                2. Security, Password, PIN & Verification Code
+                                2. Security, Password, PIN & Verification Codes
                             </p>
                         </div>
 
@@ -4367,7 +5183,7 @@ const CreateUserModal: React.FC<{ isOpen: boolean, onClose: () => void }> = ({ i
                                 </div>
                                 <Input 
                                     maxLength={4} 
-                                    placeholder="0814" 
+                                    placeholder="Enter 4-digit PIN" 
                                     value={pin} 
                                     onChange={e => setPin(e.target.value)} 
                                     required 
@@ -4383,12 +5199,12 @@ const CreateUserModal: React.FC<{ isOpen: boolean, onClose: () => void }> = ({ i
                                         onClick={generateNewSecurityCode} 
                                         className="text-[9px] font-bold text-primary hover:underline"
                                     >
-                                        New Code
+                                        Auto-Gen
                                     </button>
                                 </div>
                                 <Input 
                                     maxLength={6} 
-                                    placeholder="842109" 
+                                    placeholder="Enter 6-digit code" 
                                     value={securityCode} 
                                     onChange={e => setSecurityCode(e.target.value)} 
                                     required 
@@ -4397,21 +5213,35 @@ const CreateUserModal: React.FC<{ isOpen: boolean, onClose: () => void }> = ({ i
                             </div>
                         </div>
 
-                        {/* Status Selection & Display Note */}
+                        {/* Status Selection with Inactive & Freeze Display Notes */}
                         <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-dark-muted border border-border/70 space-y-3">
-                            <div className="flex items-center justify-between">
+                            <div className="flex items-center justify-between flex-wrap gap-2">
                                 <span className="text-[10px] font-black uppercase text-slate-600 dark:text-slate-300">Initial Account Status:</span>
-                                <div className="flex items-center gap-1.5">
-                                    {(['active', 'frozen', 'blocked', 'restricted'] as const).map(st => (
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                    {(['active', 'inactive', 'frozen', 'blocked', 'restricted'] as const).map(st => (
                                         <button
                                             key={st}
                                             type="button"
-                                            onClick={() => setAccountStatus(st)}
+                                            onClick={() => {
+                                                setAccountStatus(st);
+                                                if (st === 'inactive') {
+                                                    setStatusNote('Your bank account is currently inactive. Please contact administration at supportcathaybankusa@gmail.com to reactivate your banking services.');
+                                                } else if (st === 'frozen') {
+                                                    setStatusNote('Your bank account has been frozen by Bank Administration. Outgoing transactions and wire transfers are temporarily locked. Please contact our administrative desk at supportcathaybankusa@gmail.com to resolve.');
+                                                } else if (st === 'restricted') {
+                                                    setStatusNote('Your bank account has been restricted by Bank Administration. Outgoing transactions require compliance clearance. Please contact customer support at supportcathaybankusa@gmail.com.');
+                                                } else if (st === 'blocked') {
+                                                    setStatusNote('Your bank account has been blocked by Bank Administration. Online banking access is locked. Contact supportcathaybankusa@gmail.com.');
+                                                } else {
+                                                    setStatusNote('');
+                                                }
+                                            }}
                                             className={`px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider transition ${
                                                 accountStatus === st 
-                                                    ? st === 'active' ? 'bg-emerald-600 text-white' :
-                                                      st === 'frozen' ? 'bg-cyan-600 text-white' :
-                                                      st === 'blocked' ? 'bg-red-600 text-white' : 'bg-amber-600 text-white'
+                                                    ? st === 'active' ? 'bg-emerald-600 text-white shadow-sm' :
+                                                      st === 'inactive' ? 'bg-slate-700 text-white shadow-sm' :
+                                                      st === 'frozen' ? 'bg-cyan-600 text-white shadow-sm' :
+                                                      st === 'blocked' ? 'bg-red-600 text-white shadow-sm' : 'bg-amber-600 text-white shadow-sm'
                                                     : 'bg-white dark:bg-dark-card text-slate-600 dark:text-slate-400 border border-border'
                                             }`}
                                         >
@@ -4424,10 +5254,10 @@ const CreateUserModal: React.FC<{ isOpen: boolean, onClose: () => void }> = ({ i
                             {accountStatus !== 'active' && (
                                 <div className="space-y-1">
                                     <label className="text-[9px] font-black uppercase text-slate-500">
-                                        Display Note for Customer (Will show banner in user portal):
+                                        Notice for Customer (Will show banner in customer portal):
                                     </label>
                                     <Input 
-                                        placeholder={`e.g. This account is ${accountStatus} by Bank Administration. Contact supportcathaybankusa@gmail.com.`}
+                                        placeholder={`Custom notice for ${accountStatus} account...`}
                                         value={statusNote}
                                         onChange={e => setStatusNote(e.target.value)}
                                         className="!py-2 !text-xs"
@@ -4455,11 +5285,11 @@ const CreateUserModal: React.FC<{ isOpen: boolean, onClose: () => void }> = ({ i
                                         onClick={generateNewAccountNum} 
                                         className="text-[9px] font-bold text-primary hover:underline"
                                     >
-                                        Gen Num
+                                        Auto-Gen
                                     </button>
                                 </div>
                                 <Input 
-                                    placeholder="2890481234" 
+                                    placeholder="Enter account number" 
                                     value={accountNumber} 
                                     onChange={e => setAccountNumber(e.target.value)} 
                                     required 
@@ -4491,7 +5321,7 @@ const CreateUserModal: React.FC<{ isOpen: boolean, onClose: () => void }> = ({ i
                                 <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Checking Balance ($)</label>
                                 <Input 
                                     type="number" 
-                                    placeholder="50000" 
+                                    placeholder="Enter checking balance" 
                                     value={balance} 
                                     onChange={e => setBalance(e.target.value)} 
                                     required 
@@ -4502,7 +5332,7 @@ const CreateUserModal: React.FC<{ isOpen: boolean, onClose: () => void }> = ({ i
                                 <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Savings Balance ($)</label>
                                 <Input 
                                     type="number" 
-                                    placeholder="25000" 
+                                    placeholder="Enter savings balance" 
                                     value={savingsBalance} 
                                     onChange={e => setSavingsBalance(e.target.value)} 
                                     className="font-mono font-bold"
@@ -4512,7 +5342,7 @@ const CreateUserModal: React.FC<{ isOpen: boolean, onClose: () => void }> = ({ i
                                 <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Approved Loan ($)</label>
                                 <Input 
                                     type="number" 
-                                    placeholder="0" 
+                                    placeholder="Enter loan balance" 
                                     value={loanBalance} 
                                     onChange={e => setLoanBalance(e.target.value)} 
                                     className="font-mono font-bold"
@@ -4530,7 +5360,7 @@ const CreateUserModal: React.FC<{ isOpen: boolean, onClose: () => void }> = ({ i
                                 className="w-4 h-4 rounded text-primary focus:ring-primary"
                             />
                             <label htmlFor="sendWelcomeEmail" className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                                Send Official Welcome Email with Account Numbers & Login Information
+                                Send Official Welcome Email with Account Numbers & Login Information to Customer
                             </label>
                         </div>
                     </div>
@@ -6780,25 +7610,6 @@ const TransferPage = () => {
                                         <PhoneIcon className="w-3.5 h-3.5 text-primary" />
                                         Call USA (+1 800)
                                     </a>
-                                    <a 
-                                        href="tel:+447599186936" 
-                                        className="flex items-center justify-center gap-2.5 p-3.5 bg-slate-50 dark:bg-dark-muted rounded-xl border border-border dark:border-dark-border hover:border-primary transition group text-[9px] font-black uppercase tracking-wider text-black dark:text-white"
-                                    >
-                                        <PhoneIcon className="w-3.5 h-3.5 text-primary" />
-                                        Call UK (+44 7599)
-                                    </a>
-                                </div>
-
-                                <div className="grid grid-cols-2 gap-3">
-                                    <a 
-                                        href="https://wa.me/447922284110" 
-                                        target="_blank" 
-                                        rel="noopener noreferrer" 
-                                        className="flex items-center justify-center gap-2.5 p-3.5 bg-green-50 dark:bg-green-900/10 rounded-xl border border-green-200 dark:border-green-800/30 hover:border-green-500 transition group text-[9px] font-black uppercase tracking-wider text-green-700 dark:text-green-400"
-                                    >
-                                        <MessageCircleIcon className="w-3.5 h-3.5 text-green-600" />
-                                        WhatsApp Live
-                                    </a>
                                     <button 
                                         type="button"
                                         onClick={() => {
@@ -6814,11 +7625,11 @@ const TransferPage = () => {
                                 
                                 <div className="flex justify-center">
                                     <a 
-                                        href="mailto:support@cathabankusa.com"
+                                        href="mailto:supportcathaybankusa@gmail.com"
                                         className="w-full flex items-center justify-center gap-2 p-3 bg-slate-50 dark:bg-dark-muted rounded-xl border border-border dark:border-dark-border hover:border-primary transition text-[9px] font-black uppercase tracking-tight text-gray-700 dark:text-gray-300"
                                     >
                                         <MailIcon className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                                        support@cathabankusa.com
+                                        Contact Desk: supportcathaybankusa@gmail.com
                                     </a>
                                 </div>
                             </div>
@@ -7476,7 +8287,7 @@ const AccountsAndWalletsPage: React.FC = () => {
                         <div className="space-y-2">
                             <CopyableField label="Cathay Premier Checking Account" value={user.accountNumber} hint="Primary Checking • Active" />
                             <CopyableField label="High Yield Savings Account" value={`${user.accountNumber}9`} hint="High Yield Savings • 4.5% APY" />
-                            <CopyableField label="Cathay Rewards Credit Card" value="5410 8912 3340 9823" hint="Credit Card Limit: $10,000.00" />
+                            <CopyableField label="Cathay Platinum Credit Card" value="5410 8912 3340 9823" hint="Credit Card Limit: $10,000.00" />
                             <CopyableField label="Cathay Personal/Business Loan" value={`LN-${user.accountNumber.slice(-4)}-8122`} hint="Loan Account • Active Status" />
                         </div>
                     </div>
