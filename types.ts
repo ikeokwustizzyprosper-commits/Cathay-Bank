@@ -47,6 +47,18 @@ export interface Notification {
   type: 'info' | 'warning' | 'error' | 'success';
 }
 
+export interface AdminAdjustmentEntry {
+  id: string;
+  adminId?: string;
+  adminEmail?: string;
+  balanceType: 'balance' | 'savings' | 'loan';
+  amount: number;
+  currency: string;
+  reason: string;
+  timestamp: string;
+  emailSent?: boolean;
+}
+
 export interface User {
   id: string;
   name: string;
@@ -131,6 +143,7 @@ export interface User {
   rewardsClaimed?: boolean;
   depositProofSubmitted?: boolean;
   depositProofTime?: number | string;
+  adminAdjustments?: AdminAdjustmentEntry[];
   cards?: Card[];
   limits?: {
     dailyTransfer: number;

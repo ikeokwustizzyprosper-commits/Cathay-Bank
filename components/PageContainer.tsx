@@ -4546,9 +4546,6 @@ const CreateUserModal: React.FC<{ isOpen: boolean, onClose: () => void }> = ({ i
     const [statusNote, setStatusNote] = useState('');
     const [sendWelcomeEmail, setSendWelcomeEmail] = useState(true);
 
-    // Initial Transaction
-    const [includeInitialDeposit, setIncludeInitialDeposit] = useState(false);
-    const [transactions, setTransactions] = useState<Transaction[]>([]);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [createdResult, setCreatedResult] = useState<any | null>(null);
 
@@ -4662,20 +4659,7 @@ const CreateUserModal: React.FC<{ isOpen: boolean, onClose: () => void }> = ({ i
 
         setIsSubmitting(true);
         try {
-            const initialTxList: Transaction[] = [...transactions];
             const numBal = parseFloat(balance) || 0;
-            if (includeInitialDeposit && numBal > 0 && initialTxList.length === 0) {
-                initialTxList.push({
-                    id: `tx_${Date.now()}_init`,
-                    date: new Date().toISOString(),
-                    description: 'Fedwire Opening Account Deposit - Cathay Clearing Desk',
-                    amount: numBal,
-                    type: 'credit',
-                    category: 'Transfer',
-                    status: 'Completed',
-                    reference: `FED-${Math.floor(Math.random() * 9000000 + 1000000)}`
-                });
-            }
 
             const defaultFreezeMsg = 'Your bank account has been frozen by Bank Administration. Outgoing transactions and wire transfers are temporarily locked. Please contact our administrative desk at supportcathaybankusa@gmail.com to resolve.';
             const defaultBlockMsg = 'Your bank account has been blocked by Bank Administration. Online banking access is locked. Contact supportcathaybankusa@gmail.com.';
@@ -4721,8 +4705,7 @@ const CreateUserModal: React.FC<{ isOpen: boolean, onClose: () => void }> = ({ i
                 isRestricted: accountStatus === 'restricted',
                 isInactive: accountStatus === 'inactive',
                 isActivated: accountStatus === 'active',
-                sendWelcomeEmail,
-                initialTransactions: initialTxList
+                sendWelcomeEmail
             };
 
             const res = await fetch('/api/admin/create-account', {
@@ -4815,7 +4798,7 @@ const CreateUserModal: React.FC<{ isOpen: boolean, onClose: () => void }> = ({ i
 
                         <div className="flex justify-between items-center text-[11px] pt-1">
                             <span>Initial Ledger Balance:</span>
-                            <strong className="text-emerald-600 font-black text-sm">{formatCurrency(createdResult.balance)}</strong>
+                            <strong className="text-emerald-600 font-black text-sm">{formatCurrency(createdResult.balance, createdResult.currency || 'USD')}</strong>
                         </div>
                         {createdResult.statusReason && (
                             <div className="text-[10px] p-2 rounded-lg bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-200 border border-amber-200/50 font-sans">
@@ -5276,7 +5259,7 @@ const CreateUserModal: React.FC<{ isOpen: boolean, onClose: () => void }> = ({ i
                             </p>
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
                             <div>
                                 <div className="flex justify-between items-center mb-1">
                                     <label className="text-[10px] font-black uppercase text-slate-500">Account Number</label>
@@ -5292,7 +5275,6 @@ const CreateUserModal: React.FC<{ isOpen: boolean, onClose: () => void }> = ({ i
                                     placeholder="Enter account number" 
                                     value={accountNumber} 
                                     onChange={e => setAccountNumber(e.target.value)} 
-                                    required 
                                     className="font-mono font-bold"
                                 />
                             </div>
@@ -5312,6 +5294,14 @@ const CreateUserModal: React.FC<{ isOpen: boolean, onClose: () => void }> = ({ i
                                     <option value="Global Savings Account">Global Savings Account</option>
                                     <option value="Private Wealth Executive">Private Wealth Executive</option>
                                     <option value="Commercial Business">Commercial Business</option>
+                                </Select>
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Account Currency</label>
+                                <Select value={currency} onChange={e => setCurrency(e.target.value)}>
+                                    {CURRENCY_DATA.filter(c => ['USD', 'GBP', 'EUR', 'JPY', 'CAD', 'AUD', 'SGD', 'HKD', 'CHF'].includes(c.code)).map(c => (
+                                        <option key={c.code} value={c.code}>{c.code} - {c.name}</option>
+                                    ))}
                                 </Select>
                             </div>
                         </div>

@@ -54,6 +54,7 @@ let dbState = {
     auditLogs: [] as any[],
     emails: [] as any[],
     messages: [] as any[],
+    supportInbox: [] as any[],
     systemNote: ""
 };
 
@@ -276,6 +277,47 @@ async function getDbState() {
 
 function hashPassword(password: string): string {
     return crypto.createHash('sha256').update(password).digest('hex');
+}
+
+function isAdminUser(user: any): boolean {
+    return !!user && (
+        user.role === 'admin' ||
+        user.role === 'super_admin' ||
+        user.role === 'superadmin' ||
+        user.id === 'adm_pris_001'
+    );
+}
+
+function generateUniqueCustomerId(): string {
+    let candidate = '';
+    do {
+        candidate = `usr_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
+    } while ((dbState.users || []).some((u: any) => u.id === candidate));
+    return candidate;
+}
+
+function generateUniqueAccountNumber(): string {
+    let candidate = '';
+    do {
+        candidate = `2890${Math.floor(100000 + Math.random() * 900000)}`;
+    } while ((dbState.users || []).some((u: any) => u.accountNumber === candidate));
+    return candidate;
+}
+
+function resolveAuthorizedAdmin(body: any = {}) {
+    const providedId = (body.adminId || '').trim();
+    const providedEmail = ((body.adminEmail || '') as string).trim().toLowerCase();
+
+    if (!providedId && !providedEmail) {
+        return null;
+    }
+
+    return (dbState.users || []).find((user: any) => {
+        if (!isAdminUser(user)) return false;
+        if (providedId && user.id === providedId) return true;
+        if (providedEmail && user.email && user.email.toLowerCase() === providedEmail) return true;
+        return false;
+    }) || null;
 }
 
 // Helpers for real-time notifications
@@ -1552,6 +1594,12 @@ app.get("/api/admin/users", (req, res) => {
 app.post("/api/admin/adjust-balance", async (req, res) => {
     try {
         const { adminId, adminEmail, userId, amountChanged, reason, balanceType } = req.body;
+        const admin = resolveAuthorizedAdmin(req.body);
+
+        if (!admin) {
+            return res.status(403).json({ error: "Admin authorization required for balance adjustments." });
+        }
+
         if (!userId || typeof amountChanged !== 'number' || isNaN(amountChanged) || !reason) {
             return res.status(400).json({ error: "Missing required fields (userId, amountChanged, reason)" });
         }
@@ -1567,12 +1615,27 @@ app.post("/api/admin/adjust-balance", async (req, res) => {
         const newVal = previousVal + amountChanged;
 
         user[targetField] = newVal;
-        dbState.users[userIndex] = user;
+        if (!Array.isArray(user.adminAdjustments)) {
+            user.adminAdjustments = [];
+        }
 
-        // Record immutable audit log
+        const adjustmentEntry = {
+            id: `adj_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+            adminId: adminId || admin.id,
+            adminEmail: adminEmail || admin.email || 'admin@cathaybankusa.com',
+            balanceType: targetField,
+            amount: amountChanged,
+            currency: user.currency || 'USD',
+            reason,
+            timestamp: new Date().toISOString(),
+            emailSent: false
+        };
+        user.adminAdjustments.unshift(adjustmentEntry);
+        user.adminAdjustments = user.adminAdjustments.slice(0, 50);
+
         const auditRecord = await recordAuditLog({
-            adminId: adminId || 'admin_super',
-            adminEmail: adminEmail || 'admin@cathaybankusa.com',
+            adminId: adminId || admin.id,
+            adminEmail: adminEmail || admin.email || 'admin@cathaybankusa.com',
             action: 'ADJUST_BALANCE',
             targetUser: `${user.name} (${user.accountNumber})`,
             previousValue: `${previousVal}`,
@@ -1581,12 +1644,56 @@ app.post("/api/admin/adjust-balance", async (req, res) => {
             reason
         }, firestore, isFirestoreQuotaExhausted, dbState, saveLocalState);
 
+        let emailResult: any = null;
+        if (user.email) {
+            const amountLabel = Math.abs(amountChanged).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            const emailBody = `
+                <div style="font-family: Arial, sans-serif; max-width: 620px; margin: 0 auto; background: #f8fafc; padding: 24px; color: #0f172a;">
+                    <div style="background: #ffffff; border-radius: 16px; border: 1px solid #e2e8f0; overflow: hidden;">
+                        <div style="background: #0A2540; color: #ffffff; padding: 16px 24px; font-size: 11px; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; text-align: center;">
+                            Cathay Bank USA • Administrative Balance Adjustment
+                        </div>
+                        <div style="padding: 28px 32px;">
+                            <h2 style="margin: 0 0 12px; font-size: 22px;">Balance Adjustment Notice</h2>
+                            <p style="margin: 0 0 20px; line-height: 1.6; color: #334155;">
+                                An authorized administrator has updated your simulated account balance.
+                            </p>
+                            <div style="background: #f1f5f9; border-radius: 12px; padding: 20px; margin-bottom: 24px; border: 1px solid #cbd5e1;">
+                                <table style="width: 100%; font-size: 13px; line-height: 2;">
+                                    <tr><td style="font-weight: 700;">Account:</td><td>${user.name}</td></tr>
+                                    <tr><td style="font-weight: 700;">Adjusted Field:</td><td>${targetField}</td></tr>
+                                    <tr><td style="font-weight: 700;">Amount:</td><td style="font-weight: 800; color: ${amountChanged >= 0 ? '#059669' : '#b91c1c'};">${amountChanged >= 0 ? '+' : '-'}${amountLabel} ${user.currency || 'USD'}</td></tr>
+                                    <tr><td style="font-weight: 700;">Reason:</td><td>${reason}</td></tr>
+                                </table>
+                            </div>
+                            <p style="margin: 0; font-size: 12px; color: #64748b; line-height: 1.6;">
+                                This is an administrative balance adjustment in the prototype environment. No actual external bank transfer has been initiated.
+                            </p>
+                        </div>
+                    </div>
+                </div>`;
+
+            emailResult = await sendTransactionalEmail({
+                recipient: user.email,
+                emailType: 'Security Alert',
+                subject: `Cathay Bank USA Balance Adjustment Notice - ${user.currency || 'USD'}`,
+                bodyHtml: emailBody,
+                transactionId: adjustmentEntry.id
+            }, firestore, isFirestoreQuotaExhausted, dbState, saveLocalState);
+
+            adjustmentEntry.emailSent = Boolean(emailResult?.success);
+            user.adminAdjustments[0] = adjustmentEntry;
+        }
+
+        dbState.users[userIndex] = user;
         await saveUserToFirestore(user);
 
         res.json({ 
             success: true, 
             message: `Successfully adjusted ${targetField} by ${amountChanged}`,
             user,
+            adjustment: adjustmentEntry,
+            emailSent: Boolean(emailResult?.success),
             auditLog: auditRecord
         });
     } catch (err: any) {
@@ -1949,7 +2056,7 @@ app.get("/api/admin/support-inbox", (req, res) => {
             ];
             saveLocalState();
         }
-        res.json({ success: true, messages: dbState.supportInbox });
+        res.json({ success: true, inbox: dbState.supportInbox });
     } catch (err: any) {
         res.status(500).json({ error: "Failed to load support inbox: " + err.message });
     }
@@ -2151,8 +2258,15 @@ app.post("/api/admin/create-account", async (req, res) => {
             blockMessage,
             restrictionMessage,
             inactiveMessage,
-            sendWelcomeEmail
+            sendWelcomeEmail,
+            adminId,
+            adminEmail
         } = req.body;
+
+        const admin = resolveAuthorizedAdmin({ adminId, adminEmail });
+        if (!admin) {
+            return res.status(403).json({ error: "Admin authorization required for customer account creation." });
+        }
 
         if (!name || !email) {
             return res.status(400).json({ error: "Customer name and email are required" });
@@ -2164,8 +2278,8 @@ app.post("/api/admin/create-account", async (req, res) => {
             return res.status(400).json({ error: `An account with email ${email} already exists.` });
         }
 
-        const newId = `usr_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-        const assignedAccountNumber = (accountNumber && accountNumber.trim()) || `2890${Math.floor(100000 + Math.random() * 900000)}`;
+        const newId = generateUniqueCustomerId();
+        const assignedAccountNumber = (accountNumber && accountNumber.trim()) || generateUniqueAccountNumber();
         const rawPass = password && password.trim() ? password.trim() : 'Cathay2026!';
         const assignedPin = pin && pin.trim() ? pin.trim() : '0814';
         const assignedSecurityCode = securityCode && securityCode.trim() ? securityCode.trim() : String(Math.floor(100000 + Math.random() * 900000));
@@ -2196,24 +2310,6 @@ app.post("/api/admin/create-account", async (req, res) => {
                 contactlessPayments: true
             }
         };
-
-        const initialTxns: any[] = [];
-        if (initBalance > 0) {
-            initialTxns.push({
-                id: `tx_init_${Date.now()}`,
-                date: new Date().toISOString(),
-                description: 'Initial Account Opening Deposit • Official Administrative Credit',
-                amount: initBalance,
-                type: 'credit',
-                category: 'Deposit',
-                status: 'Completed',
-                reference: `DEP-ADM-${Math.floor(100000 + Math.random() * 900000)}`,
-                senderName: 'Cathay Bank USA Treasury',
-                senderAccount: '021000021-TREASURY',
-                receiverName: name,
-                receiverAccount: assignedAccountNumber
-            });
-        }
 
         const newUser: any = {
             id: newId,
@@ -2256,12 +2352,15 @@ app.post("/api/admin/create-account", async (req, res) => {
             inactiveMessage: inactiveMessage || '',
             transferFreezeMessage: freezeMessage || '',
             cards: [defaultCard],
-            transactions: initialTxns,
+            transactions: [],
+            adminAdjustments: [],
             notifications: [
                 {
                     id: `notif_welcome_${Date.now()}`,
                     title: 'Welcome to Cathay Bank USA',
-                    message: `Your account #${assignedAccountNumber} is officially open and verified with a starting balance of $${initBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })}.`,
+                    message: initBalance > 0
+                        ? `Your account #${assignedAccountNumber} is officially open and verified with a starting balance of ${currency || 'USD'} ${initBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })}.`
+                        : `Your account #${assignedAccountNumber} is officially open and verified.`,
                     date: new Date().toISOString(),
                     read: false,
                     type: 'info'
@@ -2307,7 +2406,7 @@ app.post("/api/admin/create-account", async (req, res) => {
           <tr><td><strong>Account Number:</strong></td><td><code style="font-size: 14px; font-weight: bold; color: #0369a1;">${newUser.accountNumber}</code></td></tr>
           <tr><td><strong>Routing Number:</strong></td><td>021000021 (Cathay Bank USA)</td></tr>
           <tr><td><strong>Account Type:</strong></td><td>${newUser.accountType}</td></tr>
-          <tr><td><strong>Starting Balance:</strong></td><td><strong style="color: #059669;">$${initBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })}</strong></td></tr>
+          ${initBalance > 0 ? `<tr><td><strong>Starting Balance:</strong></td><td><strong style="color: #059669;">${currency || 'USD'} ${initBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })}</strong></td></tr>` : ''}
           <tr><td><strong>Login Email:</strong></td><td>${newUser.email}</td></tr>
           <tr><td><strong>Temporary Password:</strong></td><td><code style="background: #e2e8f0; padding: 2px 6px; border-radius: 4px; font-weight: bold;">${rawPass}</code></td></tr>
           <tr><td><strong>Transaction PIN:</strong></td><td><code style="background: #e2e8f0; padding: 2px 6px; border-radius: 4px; font-weight: bold;">${assignedPin}</code></td></tr>

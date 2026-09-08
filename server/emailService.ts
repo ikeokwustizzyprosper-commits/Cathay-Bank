@@ -45,14 +45,20 @@ export function getServerEmailConfigStatus() {
 
     const envFrom = process.env.EMAIL_FROM || process.env.RESEND_FROM_EMAIL;
     const fromEmail = (envFrom && envFrom.includes('@')) ? envFrom.trim() : "notifications@cathabankusa.com";
+    const supportEmails = [
+        "support@cathaybankusa.som",
+        "support@cathaybankusa.com",
+        "supportcathaybankusa@gmail.com"
+    ];
 
     return {
         provider,
         isConfigured,
         maskedKey,
         fromEmail,
-        replyToEmail: process.env.EMAIL_REPLY_TO || process.env.SUPPORT_EMAIL || "support@cathabankusa.com",
-        domain: process.env.CUSTOM_DOMAIN || "cathabankusa.com",
+        replyToEmail: process.env.EMAIL_REPLY_TO || process.env.SUPPORT_EMAIL || "support@cathaybankusa.som",
+        supportEmails,
+        domain: process.env.CUSTOM_DOMAIN || "cathaybankusa.com",
         serverTime: new Date().toISOString()
     };
 }
