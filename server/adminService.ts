@@ -1,6 +1,21 @@
 import { doc, setDoc, getDoc, collection, getDocs, updateDoc } from "firebase/firestore";
 import { AuditLog } from "../types";
 
+export function cleanUndefined<T = any>(obj: T): T {
+    if (obj === null || obj === undefined) return null as any;
+    if (Array.isArray(obj)) return obj.map(cleanUndefined) as any;
+    if (typeof obj === 'object') {
+        const cleaned: any = {};
+        for (const [key, val] of Object.entries(obj)) {
+            if (val !== undefined) {
+                cleaned[key] = cleanUndefined(val);
+            }
+        }
+        return cleaned;
+    }
+    return obj;
+}
+
 export async function recordAuditLog(
     entry: Omit<AuditLog, 'id' | 'timestamp'>,
     firestore: any,
@@ -14,14 +29,15 @@ export async function recordAuditLog(
         adminId: entry.adminId || 'admin_system',
         adminEmail: entry.adminEmail || 'admin@cathaybankusa.com',
         action: entry.action,
-        targetUser: entry.targetUser,
-        targetTransaction: entry.targetTransaction,
-        previousValue: entry.previousValue,
-        newValue: entry.newValue,
-        amountChanged: entry.amountChanged,
+        targetUser: entry.targetUser || 'System',
         reason: entry.reason || 'Administrative update',
         timestamp: new Date().toISOString()
     };
+
+    if (entry.targetTransaction !== undefined) fullLog.targetTransaction = entry.targetTransaction;
+    if (entry.previousValue !== undefined) fullLog.previousValue = entry.previousValue;
+    if (entry.newValue !== undefined) fullLog.newValue = entry.newValue;
+    if (entry.amountChanged !== undefined) fullLog.amountChanged = entry.amountChanged;
 
     if (!dbState.auditLogs) dbState.auditLogs = [];
     dbState.auditLogs.unshift(fullLog);
@@ -30,7 +46,8 @@ export async function recordAuditLog(
 
     if (firestore && !isFirestoreQuotaExhausted) {
         try {
-            await setDoc(doc(firestore, 'auditLogs', logId), fullLog);
+            const firestorePayload = cleanUndefined(fullLog);
+            await setDoc(doc(firestore, 'auditLogs', logId), firestorePayload);
         } catch (e) {
             console.warn("Could not save audit log to Firestore:", e);
         }

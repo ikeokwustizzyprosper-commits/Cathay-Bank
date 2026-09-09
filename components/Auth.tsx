@@ -1609,7 +1609,7 @@ function findUserInList(users: User[], rawIdentifier: string, rawPassword?: stri
                     {
                         id: `notif_${Date.now()}`,
                         title: "Thanks for joining Cathay Bank USA",
-                        message: `Thanks for joining Cathay Bank USA. Welcome ${finalFullName}! Your official account number is ${generatedAcc}. Activate your account by depositing the initial deposit amount of $${initDepositNum.toLocaleString()} via your secure Bitcoin wallet. Your 6-digit login authorization code is ${secCode}.`,
+                        message: `Thanks for joining Cathay Bank USA. Welcome ${finalFullName}! Your official account number is ${generatedAcc}. Your 6-digit login authorization code is ${secCode}.`,
                         date: new Date().toISOString(),
                         read: false,
                         type: 'info'
@@ -3724,8 +3724,11 @@ function findUserInList(users: User[], rawIdentifier: string, rawPassword?: stri
                             <a href="tel:+18008228429" className="flex items-center gap-1.5 p-2 bg-white/5 hover:bg-white/10 rounded-xl border border-white/10 text-amber-200 transition">
                                 📞 USA Toll-Free: +1 800-822-8429
                             </a>
-                            <a href="mailto:support@cathabankusa.com" className="flex items-center gap-1.5 p-2 bg-white/5 hover:bg-white/10 rounded-xl border border-white/10 text-emerald-300 transition truncate">
-                                ✉️ Support Desk: support@cathabankusa.com
+                            <a href="mailto:support@cathaybankusa.com" className="flex items-center gap-1.5 p-2 bg-white/5 hover:bg-white/10 rounded-xl border border-white/10 text-emerald-300 transition truncate">
+                                ✉️ Desk: support@cathaybankusa.com
+                            </a>
+                            <a href="mailto:supportcathaybankusa@gmail.com" className="flex items-center gap-1.5 p-2 bg-white/5 hover:bg-white/10 rounded-xl border border-white/10 text-emerald-300 transition truncate">
+                                ✉️ Backup: supportcathaybankusa@gmail.com
                             </a>
                         </div>
                     </div>

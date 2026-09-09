@@ -2,36 +2,264 @@
   "users": [
     {
       "id": "adm_pris_001",
-      "savingsBalance": 0,
-      "pin": "1212",
-      "email": "admin@cathaybank.com",
-      "name": "Cathay Bank Manager",
       "rawPassword": "Admin",
-      "isBlocked": false,
-      "balance": 99999999,
-      "role": "super_admin",
-      "isActivated": true,
-      "avatar": "https://img.freepik.com/free-vector/doctor-character-background_1270-84.jpg",
+      "bvn": "00000000000",
+      "email": "admin@cathaybank.com",
+      "fcmToken": "fcm_token_c9w60a54l5a_1787031810669",
       "transactions": [],
-      "currency": "GBP",
-      "phone": "+44 20 7123 4567",
-      "password": "c1c224b03cd9bc7b6a86d77f5dace40191766c485cd55dc48caf9ac873335d6f",
       "loanBalance": 0,
+      "avatar": "https://img.freepik.com/free-vector/doctor-character-background_1270-84.jpg",
+      "accountNumber": "0000000001",
+      "role": "super_admin",
+      "notifications": [],
+      "isBlocked": false,
+      "pin": "1212",
+      "phone": "+44 20 7123 4567",
       "sessions": [
         {
-          "loginTime": "2026-09-06T17:42:08.193Z",
+          "ipAddress": "198.51.100.42",
+          "id": "sess-1788905027535",
+          "loginTime": "2026-09-08T22:03:47.535Z",
+          "location": "Executive Administrative Terminal, USA",
+          "isActive": true,
+          "deviceId": "device-462733"
+        },
+        {
+          "ipAddress": "198.51.100.42",
+          "id": "sess-1788903288418",
+          "deviceId": "device-271225",
+          "location": "Executive Administrative Terminal, USA",
+          "isActive": true,
+          "loginTime": "2026-09-08T21:34:48.418Z"
+        },
+        {
+          "isActive": true,
+          "location": "Executive Administrative Terminal, USA",
+          "ipAddress": "198.51.100.42",
+          "deviceId": "device-479464",
+          "id": "sess-1788903239286",
+          "loginTime": "2026-09-08T21:33:59.287Z"
+        },
+        {
+          "ipAddress": "198.51.100.42",
+          "deviceId": "device-184938",
+          "id": "sess-1788895302653",
+          "location": "Executive Administrative Terminal, USA",
+          "isActive": true,
+          "loginTime": "2026-09-08T19:21:42.653Z"
+        },
+        {
+          "deviceId": "device-294455",
+          "location": "Executive Administrative Terminal, USA",
+          "ipAddress": "198.51.100.42",
+          "id": "sess-1788878251196",
+          "isActive": true,
+          "loginTime": "2026-09-08T14:37:31.196Z"
+        },
+        {
+          "isActive": true,
+          "location": "Executive Administrative Terminal, USA",
+          "ipAddress": "198.51.100.42",
+          "deviceId": "device-592124",
+          "loginTime": "2026-09-08T14:20:15.246Z",
+          "id": "sess-1788877215246"
+        },
+        {
+          "ipAddress": "198.51.100.42",
+          "id": "sess-1788864431315",
+          "deviceId": "device-490442",
+          "isActive": true,
+          "location": "Executive Administrative Terminal, USA",
+          "loginTime": "2026-09-08T10:47:11.315Z"
+        },
+        {
+          "isActive": true,
+          "location": "Executive Administrative Terminal, USA",
           "deviceId": "device-203727",
           "id": "sess-1788716528193",
-          "ipAddress": "198.51.100.42",
-          "isActive": true,
-          "location": "Executive Administrative Terminal, USA"
+          "loginTime": "2026-09-06T17:42:08.193Z",
+          "ipAddress": "198.51.100.42"
         }
       ],
-      "notifications": [],
-      "bvn": "00000000000",
-      "fcmToken": "fcm_token_c9w60a54l5a_1787031810669",
-      "accountNumber": "0000000001",
-      "idCardNumber": "ADM-PRIS-01"
+      "currency": "GBP",
+      "isActivated": true,
+      "password": "c1c224b03cd9bc7b6a86d77f5dace40191766c485cd55dc48caf9ac873335d6f",
+      "balance": 99999999,
+      "name": "Cathay Bank Manager",
+      "idCardNumber": "ADM-PRIS-01",
+      "savingsBalance": 0
+    },
+    {
+      "id": "usr_1788943300672_f1ad0d39",
+      "securityCode": "",
+      "avatar": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80",
+      "routingNumber": "021000021",
+      "gender": "Other",
+      "restrictionMessage": "",
+      "employerName": "Cathay Enterprise Corp",
+      "pin": "",
+      "createdAt": "2026-09-09T08:41:40.673Z",
+      "dob": "1985-06-15",
+      "currency": "EUR",
+      "state": "CA",
+      "isBlocked": false,
+      "freezeMessage": "",
+      "accountType": "Global Savings Account",
+      "transferFreezeMessage": "",
+      "savingsBalance": 0,
+      "isFrozen": false,
+      "isActivated": true,
+      "kycStatus": "verified",
+      "transactions": [],
+      "loanBalance": 0,
+      "accountNumber": "2890952999",
+      "email": "testclient@cathaybankusa.com",
+      "role": "customer",
+      "notifications": [
+        {
+          "message": "Your account #2890952999 is officially active.",
+          "type": "info",
+          "date": "2026-09-09T08:41:40.673Z",
+          "id": "notif_welcome_1788943300673",
+          "title": "Welcome to Cathay Bank USA",
+          "read": false
+        }
+      ],
+      "zipCode": "90012",
+      "blockMessage": "",
+      "occupation": "Executive / Professional",
+      "city": "Los Angeles",
+      "password": "a109e36947ad56de1dca1cc49f0ef8ac9ad9a7b1aa0df41fb3c4cb73c1ff01ea",
+      "isRestricted": false,
+      "phone": "+1 (212) 555-0199",
+      "emailVerified": true,
+      "cards": [
+        {
+          "status": "active",
+          "cvv": "144",
+          "isFrozen": false,
+          "spendingControls": {
+            "atmWithdrawals": true,
+            "onlinePurchases": true,
+            "internationalPurchases": true,
+            "contactlessPayments": true
+          },
+          "cardType": "debit",
+          "expiryDate": "12/29",
+          "userId": "usr_1788943300672_f1ad0d39",
+          "monthlyLimit": 150000,
+          "cardHolder": "EURO CUSTOMER",
+          "id": "card_1788943300672",
+          "cardNumber": "4000 1234 5927 6034",
+          "dailyLimit": 25000
+        }
+      ],
+      "inactiveMessage": "",
+      "adminAdjustments": [
+        {
+          "reason": "Direct deposit funding",
+          "emailSent": false,
+          "adminId": "adm_pris_001",
+          "timestamp": "2026-09-09T08:41:50.533Z",
+          "currency": "EUR",
+          "id": "adj_1788943310533_jsjbv3u",
+          "balanceType": "balance",
+          "amount": 5000,
+          "adminEmail": "admin@cathaybank.com"
+        }
+      ],
+      "accountStatus": "active",
+      "name": "Euro Customer",
+      "balance": 5000,
+      "isInactive": false,
+      "residentialAddress": "777 N. Broadway",
+      "country": "United States"
+    },
+    {
+      "id": "usr_1788943707779_a70a282c",
+      "securityCode": "",
+      "cards": [
+        {
+          "cardNumber": "4000 1234 3606 8319",
+          "dailyLimit": 25000,
+          "expiryDate": "12/29",
+          "cardHolder": "AUDIT FIX TEST",
+          "monthlyLimit": 150000,
+          "status": "active",
+          "isFrozen": false,
+          "userId": "usr_1788943707779_a70a282c",
+          "cardType": "debit",
+          "id": "card_1788943707779",
+          "cvv": "464",
+          "spendingControls": {
+            "contactlessPayments": true,
+            "atmWithdrawals": true,
+            "internationalPurchases": true,
+            "onlinePurchases": true
+          }
+        }
+      ],
+      "isFrozen": false,
+      "phone": "+1 (212) 555-0199",
+      "routingNumber": "021000021",
+      "pin": "",
+      "occupation": "Executive / Professional",
+      "employerName": "Cathay Enterprise Corp",
+      "restrictionMessage": "",
+      "inactiveMessage": "",
+      "email": "audit_test@cathaybankusa.com",
+      "currency": "USD",
+      "freezeMessage": "",
+      "isInactive": false,
+      "loanBalance": 0,
+      "dob": "1985-06-15",
+      "isActivated": true,
+      "accountType": "Standard Checking",
+      "createdAt": "2026-09-09T08:48:27.780Z",
+      "savingsBalance": 0,
+      "emailVerified": true,
+      "transactions": [],
+      "zipCode": "90012",
+      "name": "Audit Fix Test",
+      "notifications": [
+        {
+          "message": "Your account #2890153331 is officially active.",
+          "type": "info",
+          "id": "notif_welcome_1788943707780",
+          "date": "2026-09-09T08:48:27.780Z",
+          "title": "Welcome to Cathay Bank USA",
+          "read": false
+        }
+      ],
+      "kycStatus": "verified",
+      "isBlocked": false,
+      "isRestricted": false,
+      "blockMessage": "",
+      "accountNumber": "2890153331",
+      "password": "a109e36947ad56de1dca1cc49f0ef8ac9ad9a7b1aa0df41fb3c4cb73c1ff01ea",
+      "city": "Los Angeles",
+      "state": "CA",
+      "transferFreezeMessage": "",
+      "balance": 2500,
+      "adminAdjustments": [
+        {
+          "emailSent": false,
+          "adminEmail": "admin@cathaybank.com",
+          "balanceType": "balance",
+          "currency": "USD",
+          "timestamp": "2026-09-09T08:48:31.946Z",
+          "reason": "Testing audit log fix",
+          "adminId": "adm_pris_001",
+          "amount": 2500,
+          "id": "adj_1788943711946_2z3cbdn"
+        }
+      ],
+      "country": "United States",
+      "residentialAddress": "777 N. Broadway",
+      "gender": "Other",
+      "avatar": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80",
+      "role": "customer",
+      "accountStatus": "active"
     }
   ],
   "messages": [],
@@ -228,9 +456,77 @@
       "createdDate": "2026-09-07T18:34:46.964Z",
       "lastLogin": "2026-09-08T10:07:27.278Z",
       "emailVerificationStatus": true
+    },
+    {
+      "id": "acc_usr_1788943300672_f1ad0d39",
+      "userId": "usr_1788943300672_f1ad0d39",
+      "accountNumber": "2890952999",
+      "fullName": "Euro Customer",
+      "email": "testclient@cathaybankusa.com",
+      "currency": "EUR",
+      "simulatedBalance": 5000,
+      "savingsBalance": 0,
+      "loanBalance": 0,
+      "accountStatus": "active",
+      "isTestEnvironment": true,
+      "createdDate": "2026-09-09T08:41:40.673Z",
+      "lastLogin": "2026-09-09T08:41:50.892Z",
+      "emailVerificationStatus": true
     }
   ],
   "emails": [
+    {
+      "id": "eml_1788943712142_hl5k5",
+      "emailStatus": "Failed",
+      "transactionId": "adj_1788943711946_2z3cbdn",
+      "recipient": "audit_test@cathaybankusa.com",
+      "emailType": "Balance Adjustment",
+      "subject": "Cathay Bank Official Notice: Your Account Has Been Funded with 2,500.00 USD",
+      "body": "\n                <div style=\"font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 620px; margin: 0 auto; background: #f8fafc; padding: 24px; color: #0f172a;\">\n                    <div style=\"background: #ffffff; border-radius: 16px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);\">\n                        <div style=\"background: #0A2540; color: #ffffff; padding: 18px 24px; text-align: center;\">\n                            <div style=\"font-size: 11px; font-weight: 800; letter-spacing: 0.15em; text-transform: uppercase; color: #38bdf8;\">\n                                CATHAY BANK USA • OFFICIAL ACCOUNT CREDIT NOTICE\n                            </div>\n                            <div style=\"font-size: 10px; color: #94a3b8; margin-top: 4px;\">\n                                MEMBER FDIC • EQUAL HOUSING LENDER\n                            </div>\n                        </div>\n                        <div style=\"padding: 28px 32px;\">\n                            <h2 style=\"margin: 0 0 14px; font-size: 20px; font-weight: 800; color: #0f172a;\">\n                                Account Credited / Balance Funded\n                            </h2>\n                            <p style=\"margin: 0 0 20px; line-height: 1.6; font-size: 14px; color: #334155;\">\n                                Dear <strong>Audit Fix Test</strong>,<br/>\n                                Your Cathay Bank account ending in <strong>3331</strong> has been funded with <strong>USD 2,500.00</strong>.\n                            </p>\n                            <div style=\"background: #f8fafc; border-radius: 12px; padding: 20px; margin-bottom: 24px; border: 1px solid #e2e8f0;\">\n                                <table style=\"width: 100%; font-size: 13px; line-height: 2.2; border-collapse: collapse;\">\n                                    <tr><td style=\"color: #64748b; font-weight: 600;\">Account Holder:</td><td style=\"font-weight: 700; text-align: right; color: #0f172a;\">Audit Fix Test</td></tr>\n                                    <tr><td style=\"color: #64748b; font-weight: 600;\">Account Number:</td><td style=\"font-weight: 700; text-align: right; font-family: monospace; color: #0f172a;\">2890153331</td></tr>\n                                    <tr><td style=\"color: #64748b; font-weight: 600;\">Adjusted Category:</td><td style=\"font-weight: 700; text-align: right; text-transform: uppercase; color: #0f172a;\">balance</td></tr>\n                                    <tr><td style=\"color: #64748b; font-weight: 600;\">Amount Funded:</td><td style=\"font-weight: 800; text-align: right; color: #059669; font-size: 15px;\">+2,500.00 USD</td></tr>\n                                    <tr><td style=\"color: #64748b; font-weight: 600;\">Updated Available Balance:</td><td style=\"font-weight: 800; text-align: right; color: #0A2540; font-size: 15px;\">USD 2,500.00</td></tr>\n                                    <tr><td style=\"color: #64748b; font-weight: 600;\">Credit Memo / Note:</td><td style=\"text-align: right; color: #334155; font-style: italic;\">Testing audit log fix</td></tr>\n                                </table>\n                            </div>\n                            <div style=\"background: #eff6ff; border-radius: 10px; padding: 14px; margin-bottom: 20px; border: 1px solid #bfdbfe;\">\n                                <p style=\"margin: 0; font-size: 12px; color: #1e40af; line-height: 1.5;\">\n                                    <strong>Administrative Classification:</strong> This transaction reflects an authorized administrative balance adjustment in the Cathay Bank secure ledger. No external bank transfer occurred.\n                                </p>\n                            </div>\n                            <p style=\"margin: 0; font-size: 12px; color: #94a3b8; line-height: 1.6;\">\n                                If you have inquiries regarding this funding notification, please contact Cathay Bank Operations Support at <strong>support@cathaybankusa.com</strong> or <strong>supportcathaybankusa@gmail.com</strong>.\n                            </p>\n                        </div>\n                    </div>\n                </div>",
+      "createdTimestamp": "2026-09-09T08:48:32.142Z",
+      "retryCount": 0,
+      "providerUsed": "resend",
+      "failureReason": "Resend rejected: {\"statusCode\":403,\"name\":\"validation_error\",\"message\":\"You can only send testing emails to your own email address (ikeokwustizzyprosper@gmail.com). To send emails to other recipients, please verify a domain at resend.com/domains, and change the `from` address to an email using this domain.\"}"
+    },
+    {
+      "id": "eml_1788943699272_sclgb",
+      "emailStatus": "Failed",
+      "transactionId": null,
+      "recipient": "audit_test@cathaybankusa.com",
+      "emailType": "Verification Code",
+      "subject": "Cathay Bank — Your Account Registration Code",
+      "body": "[verification content redacted]",
+      "createdTimestamp": "2026-09-09T08:48:19.272Z",
+      "retryCount": 0,
+      "providerUsed": "resend",
+      "failureReason": "Resend rejected: {\"statusCode\":403,\"name\":\"validation_error\",\"message\":\"You can only send testing emails to your own email address (ikeokwustizzyprosper@gmail.com). To send emails to other recipients, please verify a domain at resend.com/domains, and change the `from` address to an email using this domain.\"}"
+    },
+    {
+      "id": "eml_1788943310552_jb54u",
+      "emailStatus": "Failed",
+      "transactionId": "adj_1788943310533_jsjbv3u",
+      "recipient": "testclient@cathaybankusa.com",
+      "emailType": "Balance Adjustment",
+      "subject": "Cathay Bank Official Notice: Your Account Has Been Funded with 5,000.00 EUR",
+      "body": "\n                <div style=\"font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 620px; margin: 0 auto; background: #f8fafc; padding: 24px; color: #0f172a;\">\n                    <div style=\"background: #ffffff; border-radius: 16px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);\">\n                        <div style=\"background: #0A2540; color: #ffffff; padding: 18px 24px; text-align: center;\">\n                            <div style=\"font-size: 11px; font-weight: 800; letter-spacing: 0.15em; text-transform: uppercase; color: #38bdf8;\">\n                                CATHAY BANK USA • OFFICIAL ACCOUNT CREDIT NOTICE\n                            </div>\n                            <div style=\"font-size: 10px; color: #94a3b8; margin-top: 4px;\">\n                                MEMBER FDIC • EQUAL HOUSING LENDER\n                            </div>\n                        </div>\n                        <div style=\"padding: 28px 32px;\">\n                            <h2 style=\"margin: 0 0 14px; font-size: 20px; font-weight: 800; color: #0f172a;\">\n                                Account Credited / Balance Funded\n                            </h2>\n                            <p style=\"margin: 0 0 20px; line-height: 1.6; font-size: 14px; color: #334155;\">\n                                Dear <strong>Euro Customer</strong>,<br/>\n                                Your Cathay Bank account ending in <strong>2999</strong> has been funded with <strong>EUR 5,000.00</strong>.\n                            </p>\n                            <div style=\"background: #f8fafc; border-radius: 12px; padding: 20px; margin-bottom: 24px; border: 1px solid #e2e8f0;\">\n                                <table style=\"width: 100%; font-size: 13px; line-height: 2.2; border-collapse: collapse;\">\n                                    <tr><td style=\"color: #64748b; font-weight: 600;\">Account Holder:</td><td style=\"font-weight: 700; text-align: right; color: #0f172a;\">Euro Customer</td></tr>\n                                    <tr><td style=\"color: #64748b; font-weight: 600;\">Account Number:</td><td style=\"font-weight: 700; text-align: right; font-family: monospace; color: #0f172a;\">2890952999</td></tr>\n                                    <tr><td style=\"color: #64748b; font-weight: 600;\">Adjusted Category:</td><td style=\"font-weight: 700; text-align: right; text-transform: uppercase; color: #0f172a;\">balance</td></tr>\n                                    <tr><td style=\"color: #64748b; font-weight: 600;\">Amount Funded:</td><td style=\"font-weight: 800; text-align: right; color: #059669; font-size: 15px;\">+5,000.00 EUR</td></tr>\n                                    <tr><td style=\"color: #64748b; font-weight: 600;\">Updated Available Balance:</td><td style=\"font-weight: 800; text-align: right; color: #0A2540; font-size: 15px;\">EUR 5,000.00</td></tr>\n                                    <tr><td style=\"color: #64748b; font-weight: 600;\">Credit Memo / Note:</td><td style=\"text-align: right; color: #334155; font-style: italic;\">Direct deposit funding</td></tr>\n                                </table>\n                            </div>\n                            <div style=\"background: #eff6ff; border-radius: 10px; padding: 14px; margin-bottom: 20px; border: 1px solid #bfdbfe;\">\n                                <p style=\"margin: 0; font-size: 12px; color: #1e40af; line-height: 1.5;\">\n                                    <strong>Administrative Classification:</strong> This transaction reflects an authorized administrative balance adjustment in the Cathay Bank secure ledger. No external bank transfer occurred.\n                                </p>\n                            </div>\n                            <p style=\"margin: 0; font-size: 12px; color: #94a3b8; line-height: 1.6;\">\n                                If you have inquiries regarding this funding notification, please contact Cathay Bank Operations Support at <strong>support@cathaybankusa.com</strong> or <strong>supportcathaybankusa@gmail.com</strong>.\n                            </p>\n                        </div>\n                    </div>\n                </div>",
+      "createdTimestamp": "2026-09-09T08:41:50.552Z",
+      "retryCount": 0,
+      "providerUsed": "resend",
+      "failureReason": "Resend rejected: {\"statusCode\":403,\"name\":\"validation_error\",\"message\":\"You can only send testing emails to your own email address (ikeokwustizzyprosper@gmail.com). To send emails to other recipients, please verify a domain at resend.com/domains, and change the `from` address to an email using this domain.\"}"
+    },
+    {
+      "id": "eml_1788943286854_wi1eh",
+      "emailStatus": "Failed",
+      "transactionId": null,
+      "recipient": "testclient@cathaybankusa.com",
+      "emailType": "Verification Code",
+      "subject": "Cathay Bank — Your Account Registration Code",
+      "body": "[verification content redacted]",
+      "createdTimestamp": "2026-09-09T08:41:26.854Z",
+      "retryCount": 0,
+      "providerUsed": "resend",
+      "failureReason": "Resend rejected: {\"statusCode\":403,\"name\":\"validation_error\",\"message\":\"You can only send testing emails to your own email address (ikeokwustizzyprosper@gmail.com). To send emails to other recipients, please verify a domain at resend.com/domains, and change the `from` address to an email using this domain.\"}"
+    },
     {
       "id": "eml_1788860168709_uwl38",
       "emailStatus": "Sent",
@@ -692,6 +988,40 @@
     }
   ],
   "auditLogs": [
+    {
+      "id": "audit_1788943707986_kjx1d",
+      "adminId": "adm_pris_001",
+      "adminEmail": "admin@cathaybank.com",
+      "action": "CREATE_CUSTOMER_ACCOUNT",
+      "targetUser": "Audit Fix Test (2890153331)",
+      "reason": "Administrator created official customer profile and account",
+      "timestamp": "2026-09-09T08:48:27.986Z",
+      "previousValue": "None",
+      "newValue": "Created with initial balance USD 0, Account #2890153331, Status: active"
+    },
+    {
+      "id": "audit_1788943310533_qen0e",
+      "adminId": "adm_pris_001",
+      "adminEmail": "admin@cathaybank.com",
+      "action": "ADJUST_BALANCE",
+      "targetUser": "Euro Customer (2890952999)",
+      "previousValue": "0",
+      "newValue": "5000",
+      "amountChanged": 5000,
+      "reason": "Direct deposit funding",
+      "timestamp": "2026-09-09T08:41:50.533Z"
+    },
+    {
+      "id": "audit_1788943300881_55h4u",
+      "adminId": "adm_pris_001",
+      "adminEmail": "admin@cathaybank.com",
+      "action": "CREATE_CUSTOMER_ACCOUNT",
+      "targetUser": "Euro Customer (2890952999)",
+      "previousValue": "None",
+      "newValue": "Created with initial balance EUR 0, Account #2890952999, Status: active",
+      "reason": "Administrator created official customer profile and account",
+      "timestamp": "2026-09-09T08:41:40.881Z"
+    },
     {
       "id": "audit_1788546676497_vv4du",
       "adminId": "admin_super",

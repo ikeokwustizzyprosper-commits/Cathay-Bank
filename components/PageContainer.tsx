@@ -206,24 +206,25 @@ const AdminDashboard = () => {
 
     const [showAdminSetupGuide, setShowAdminSetupGuide] = useState(false);
     
-    const customers = state.users.filter(u => u.role === 'customer');
+    const customers = (state.users || []).filter(u => u && u.role === 'customer');
     const allTransactions = useMemo(() => {
-        return state.users.flatMap(u => (u.transactions || []).map(tx => ({ ...tx, userId: u.id, userName: u.name })))
-                          .sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        return (state.users || []).flatMap(u => (u?.transactions || []).map(tx => ({ ...tx, userId: u?.id, userName: u?.name })))
+                          .sort((a,b) => new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime());
     }, [state.users]);
 
     const newUsersToday = useMemo(() => {
-        const count = state.users.filter(u => u.id.startsWith('usr_new_') || u.id === 'usr_joakim_blom').length;
+        const count = (state.users || []).filter(u => u?.id?.startsWith('usr_new_') || u?.id === 'usr_joakim_blom').length;
         return count || 1;
     }, [state.users]);
 
     const recentTransfers = useMemo(() => {
-        return allTransactions.filter(tx => tx.category === 'Transfer' || tx.description.toLowerCase().includes('transfer'))
+        return allTransactions.filter(tx => tx && (tx.category === 'Transfer' || (tx.description && tx.description.toLowerCase().includes('transfer'))))
                               .slice(0, 5);
     }, [allTransactions]);
 
     const filteredEmailLogs = useMemo(() => {
         return (emailLogs || []).filter(item => {
+            if (!item) return false;
             const matchesQuery = !emailSearchQuery || 
                 (item.recipient || '').toLowerCase().includes(emailSearchQuery.toLowerCase()) ||
                 (item.subject || '').toLowerCase().includes(emailSearchQuery.toLowerCase()) ||
@@ -240,14 +241,14 @@ const AdminDashboard = () => {
         });
     }, [emailLogs, emailSearchQuery, emailStatusFilter]);
 
-    const usersWithLoans = state.users.filter(u => u.loanBalance > 0);
-    const usersWithSavings = state.users.filter(u => u.savingsBalance > 0);
+    const usersWithLoans = (state.users || []).filter(u => (u?.loanBalance || 0) > 0);
+    const usersWithSavings = (state.users || []).filter(u => (u?.savingsBalance || 0) > 0);
 
     const [searchQuery, setSearchQuery] = useState('');
     const filteredUsers = customers.filter(u => 
-        u.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-        u.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        u.accountNumber.includes(searchQuery)
+        (u?.name || '').toLowerCase().includes(searchQuery.toLowerCase()) || 
+        (u?.email || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (u?.accountNumber || '').includes(searchQuery)
     );
 
     const [showCreateUser, setShowCreateUser] = useState(false);
@@ -888,15 +889,15 @@ const AdminDashboard = () => {
             {tab === 'overview' && (
                 <div className="space-y-6">
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                        <AdminStatCard label={t('totalUsers')} value={customers.length.toString()} icon={UserIcon} />
-                        <AdminStatCard label={t('totalBalance')} value={formatCurrency(state.users.reduce((a,u) => a + u.balance + u.savingsBalance, 0))} icon={LandmarkIcon} />
-                        <AdminStatCard label="Total Transactions" value={allTransactions.length.toString()} icon={RefreshCwIcon} />
+                        <AdminStatCard label={t('totalUsers')} value={(customers || []).length.toString()} icon={UserIcon} />
+                        <AdminStatCard label={t('totalBalance')} value={formatCurrency((state.users || []).reduce((a,u) => a + (u?.balance || 0) + (u?.savingsBalance || 0), 0))} icon={LandmarkIcon} />
+                        <AdminStatCard label="Total Transactions" value={(allTransactions || []).length.toString()} icon={RefreshCwIcon} />
                         <AdminStatCard label="New Users Today" value={newUsersToday.toString()} icon={UserIcon} color="text-green-500" />
                     </div>
 
                     <div className="bg-white dark:bg-dark-card p-6 rounded-[2rem] border border-border dark:border-dark-border shadow-xl space-y-4">
                         <h3 className="text-xs font-black uppercase tracking-widest text-primary dark:text-dark-primary">Recent Transfers</h3>
-                        {recentTransfers.length === 0 ? (
+                        {(recentTransfers || []).length === 0 ? (
                             <p className="text-[10px] font-bold text-muted-foreground uppercase opacity-40 py-4 text-center">No recent transfers processed.</p>
                         ) : (
                             <div className="divide-y divide-border/50 dark:divide-dark-border/50">
@@ -904,10 +905,10 @@ const AdminDashboard = () => {
                                     <div key={`${tx.id}-${tx.userId || tx.senderAccount || ''}-${idx}`} className="py-3 flex justify-between items-center text-xs">
                                         <div>
                                             <p className="font-bold text-gray-900 dark:text-white">{tx.userName || tx.senderName} ➔ {tx.receiverName}</p>
-                                            <p className="text-[9px] font-black uppercase opacity-40 mt-0.5">{new Date(tx.date).toLocaleDateString()} • {tx.reference}</p>
+                                            <p className="text-[9px] font-black uppercase opacity-40 mt-0.5">{new Date(tx.date || Date.now()).toLocaleDateString()} • {tx.reference}</p>
                                         </div>
                                         <div className="text-right">
-                                            <p className="font-extrabold text-red-500">{formatCurrency(Math.abs(tx.amount))}</p>
+                                            <p className="font-extrabold text-red-500">{formatCurrency(Math.abs(tx.amount || 0))}</p>
                                             <span className={`text-[8px] font-black px-2 py-0.5 rounded-full uppercase ${
                                                 tx.status === 'Completed' ? 'bg-green-100 dark:bg-green-900/30 text-green-600' :
                                                 tx.status === 'Pending' ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-600' :
@@ -1084,7 +1085,7 @@ const AdminDashboard = () => {
                                     {/* Credentials & Security Box */}
                                     <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-dark-muted border border-border/60 flex items-center justify-between flex-wrap gap-2 text-[10px]">
                                         <div className="flex items-center gap-3 font-mono flex-wrap">
-                                            <span>PW: <strong className="text-emerald-700 dark:text-emerald-300 font-bold">{user.rawPassword || (user.password.length > 25 ? '123456' : user.password)}</strong></span>
+                                            <span>PW: <strong className="text-emerald-700 dark:text-emerald-300 font-bold">{user.rawPassword || ((user.password?.length || 0) > 25 ? '123456' : (user.password || '••••••••'))}</strong></span>
                                             <span>PIN: <strong className="text-slate-800 dark:text-white font-bold">{user.pin || '0814'}</strong></span>
                                             <span>CODE: <strong className="text-purple-700 dark:text-purple-300 font-bold">{user.securityCode || user.bvn?.slice(0,6) || '842109'}</strong></span>
                                             {user.phone && <span>TEL: <strong className="text-slate-600 dark:text-slate-300">{user.phone}</strong></span>}
@@ -2022,9 +2023,9 @@ const AdminDashboard = () => {
                                                     <span className="text-[8px] text-muted-foreground uppercase block font-sans">Access Password</span>
                                                     <div className="flex items-center justify-between">
                                                         <span className="font-bold text-emerald-700 dark:text-emerald-300">
-                                                            {showAllPasswords ? (u.password.length > 25 ? '(Master / 123456)' : u.password) : '••••••••'}
+                                                            {showAllPasswords ? ((u.password?.length || 0) > 25 ? '(Master / 123456)' : (u.password || '••••••••')) : '••••••••'}
                                                         </span>
-                                                        <button onClick={() => copyToClipboard(u.password.length > 25 ? '123456' : u.password, `pass_${u.id}`)} className="text-slate-400 hover:text-primary">
+                                                        <button onClick={() => copyToClipboard((u.password?.length || 0) > 25 ? '123456' : (u.password || '123456'), `pass_${u.id}`)} className="text-slate-400 hover:text-primary">
                                                             {copiedField === `pass_${u.id}` ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
                                                         </button>
                                                     </div>
@@ -2718,16 +2719,15 @@ const AdminDashboard = () => {
                                                     </button>
                                                 )}
 
-                                                {(normStatus === 'failed' || normStatus === 'queued') && (
-                                                    <button 
-                                                        onClick={() => handleRetryEmail(item.id)}
-                                                        disabled={retryingEmailId === item.id}
-                                                        className="px-3 py-1.5 bg-primary/10 hover:bg-primary/20 text-primary rounded-xl text-[9px] font-black uppercase tracking-wider transition flex items-center gap-1.5"
-                                                    >
-                                                        <RefreshCw className={`w-3 h-3 ${retryingEmailId === item.id ? 'animate-spin' : ''}`} />
-                                                        {retryingEmailId === item.id ? 'Retrying...' : 'Retry Delivery Now'}
-                                                    </button>
-                                                )}
+                                                <button 
+                                                    onClick={() => handleRetryEmail(item.id)}
+                                                    disabled={retryingEmailId === item.id}
+                                                    className="px-3 py-1.5 bg-primary/10 hover:bg-primary/20 text-primary rounded-xl text-[9px] font-black uppercase tracking-wider transition flex items-center gap-1.5"
+                                                    title="Resend or retry this email notification"
+                                                >
+                                                    <RefreshCw className={`w-3 h-3 ${retryingEmailId === item.id ? 'animate-spin' : ''}`} />
+                                                    {retryingEmailId === item.id ? 'Sending...' : (normStatus === 'sent' ? 'Resend on Resend' : 'Retry Delivery')}
+                                                </button>
                                             </div>
                                         </div>
                                     );
@@ -2918,7 +2918,7 @@ const AdminDashboard = () => {
 
                     {/* Quick KPI stats */}
                     {(() => {
-                        const items = supportInbox.length > 0 ? supportInbox : [
+                        const items = (supportInbox || []).length > 0 ? supportInbox : [
                             {
                                 id: 'inbox-101',
                                 fromName: 'David Sterling',
@@ -2950,22 +2950,22 @@ const AdminDashboard = () => {
                                 message: 'To the Executive Banking Team,\n\nWe are looking to expand our business checking line to support our newest regional facilities. Please connect us with a designated relationship manager.\n\nBest regards,\nRobert Vance'
                             }
                         ];
-                        const unreadCount = items.filter(m => !m.isRead).length;
-                        const repliedCount = items.filter(m => m.isReplied).length;
+                        const unreadCount = (items || []).filter(m => !m?.isRead).length;
+                        const repliedCount = (items || []).filter(m => m?.isReplied).length;
 
                         return (
                             <>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                                    <AdminStatCard label="Inbound Messages" value={items.length.toString()} icon={Mail} />
+                                    <AdminStatCard label="Inbound Messages" value={(items || []).length.toString()} icon={Mail} />
                                     <AdminStatCard label="Unread / Pending" value={unreadCount.toString()} icon={Clock} color="text-amber-500" />
                                     <AdminStatCard label="Replied & Resolved" value={repliedCount.toString()} icon={CheckCircle} color="text-emerald-500" />
-                                    <AdminStatCard label="Outbound Log" value={filteredEmailLogs.length.toString()} icon={Send} />
+                                    <AdminStatCard label="Outbound Log" value={(filteredEmailLogs || []).length.toString()} icon={Send} />
                                 </div>
 
                                 <div className="flex items-center justify-between gap-2 flex-wrap bg-white dark:bg-dark-card p-2 rounded-2xl border border-border dark:border-dark-border shadow-sm">
                                     <div className="flex items-center gap-2 overflow-x-auto">
                                         {[
-                                            { id: 'all', label: `All Inbound Mail (${items.length})` },
+                                            { id: 'all', label: `All Inbound Mail (${(items || []).length})` },
                                             { id: 'unread', label: `Unread (${unreadCount})` },
                                             { id: 'replied', label: `Replied (${repliedCount})` }
                                         ].map(f => (
@@ -4339,7 +4339,7 @@ await admin.auth().setCustomUserClaims(uid, {
                                 <div className="p-3 bg-white dark:bg-dark-card rounded-xl border border-purple-200 dark:border-purple-900/50">
                                     <span className="text-[9px] font-black uppercase text-muted-foreground block">Online Password</span>
                                     <span className="text-sm font-mono font-black text-emerald-600 dark:text-emerald-400 mt-1 block">
-                                        {inspectingUser.rawPassword || (inspectingUser.password.length > 25 ? 'caoduy@100' : inspectingUser.password)}
+                                        {inspectingUser.rawPassword || ((inspectingUser.password?.length || 0) > 25 ? 'caoduy@100' : (inspectingUser.password || '••••••••'))}
                                     </span>
                                 </div>
                                 <div className="p-3 bg-white dark:bg-dark-card rounded-xl border border-purple-200 dark:border-purple-900/50">
@@ -4549,6 +4549,28 @@ const CreateUserModal: React.FC<{ isOpen: boolean, onClose: () => void }> = ({ i
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [createdResult, setCreatedResult] = useState<any | null>(null);
 
+    // Auto-generate unique credentials and account ID when modal opens
+    useEffect(() => {
+        if (isOpen) {
+            if (!accountNumber) {
+                let acc = `2890${Math.floor(100000 + Math.random() * 900000)}`;
+                while ((state.users || []).some(u => u.accountNumber === acc)) {
+                    acc = `2890${Math.floor(100000 + Math.random() * 900000)}`;
+                }
+                setAccountNumber(acc);
+            }
+            if (!securityCode) setSecurityCode(Math.floor(100000 + Math.random() * 900000).toString());
+            if (!pin) setPin(Math.floor(1000 + Math.random() * 9000).toString());
+            if (!password) {
+                const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%';
+                let res = 'Cathay';
+                for (let i = 0; i < 4; i++) res += chars.charAt(Math.floor(Math.random() * chars.length));
+                res += '!';
+                setPassword(res);
+            }
+        }
+    }, [isOpen]);
+
     // Generators
     const generateNewSecurityCode = () => {
         setSecurityCode(Math.floor(100000 + Math.random() * 900000).toString());
@@ -4564,7 +4586,11 @@ const CreateUserModal: React.FC<{ isOpen: boolean, onClose: () => void }> = ({ i
         setPassword(res);
     };
     const generateNewAccountNum = () => {
-        setAccountNumber(`2890${Math.floor(100000 + Math.random() * 900000)}`);
+        let acc = `2890${Math.floor(100000 + Math.random() * 900000)}`;
+        while ((state.users || []).some(u => u.accountNumber === acc)) {
+            acc = `2890${Math.floor(100000 + Math.random() * 900000)}`;
+        }
+        setAccountNumber(acc);
     };
 
     // Customer Picture File Upload Handler (Data URL ensures cross-session persistence)
@@ -4601,7 +4627,10 @@ const CreateUserModal: React.FC<{ isOpen: boolean, onClose: () => void }> = ({ i
             const data = await res.json();
             if (data.success) {
                 setVerificationCodeSent(true);
-                setVerificationFeedback(`Verification code successfully dispatched to ${email.trim()}. Please enter the 6-digit code below to confirm.`);
+                if (data.code) {
+                    setVerificationCodeInput(data.code);
+                }
+                setVerificationFeedback(`✓ Verification code successfully dispatched to ${email.trim()}. Enter code and confirm to verify.`);
             } else {
                 alert(data.error || 'Failed to dispatch verification code.');
             }
@@ -5296,8 +5325,10 @@ const CreateUserModal: React.FC<{ isOpen: boolean, onClose: () => void }> = ({ i
                             <div>
                                 <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Account Currency</label>
                                 <Select value={currency} onChange={e => setCurrency(e.target.value)}>
-                                    {CURRENCY_DATA.filter(c => ['USD', 'GBP', 'EUR', 'JPY', 'CAD', 'AUD', 'SGD', 'HKD', 'CHF'].includes(c.code)).map(c => (
-                                        <option key={c.code} value={c.code}>{c.code} - {c.name}</option>
+                                    {CURRENCY_DATA.map(c => (
+                                        <option key={c.code} value={c.code}>
+                                            {c.code} - {c.name} ({c.symbol})
+                                        </option>
                                     ))}
                                 </Select>
                             </div>
@@ -5305,31 +5336,30 @@ const CreateUserModal: React.FC<{ isOpen: boolean, onClose: () => void }> = ({ i
 
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                             <div>
-                                <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Checking Balance ($)</label>
+                                <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Checking Balance ({currency})</label>
                                 <Input 
                                     type="number" 
-                                    placeholder="Enter checking balance" 
+                                    placeholder="0.00 (Optional — leave empty for zero balance)" 
                                     value={balance} 
                                     onChange={e => setBalance(e.target.value)} 
-                                    required 
                                     className="font-mono font-bold text-emerald-600"
                                 />
                             </div>
                             <div>
-                                <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Savings Balance ($)</label>
+                                <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Savings Balance ({currency})</label>
                                 <Input 
                                     type="number" 
-                                    placeholder="Enter savings balance" 
+                                    placeholder="0.00 (Optional)" 
                                     value={savingsBalance} 
                                     onChange={e => setSavingsBalance(e.target.value)} 
                                     className="font-mono font-bold"
                                 />
                             </div>
                             <div>
-                                <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Approved Loan ($)</label>
+                                <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Approved Loan ({currency})</label>
                                 <Input 
                                     type="number" 
-                                    placeholder="Enter loan balance" 
+                                    placeholder="0.00 (Optional)" 
                                     value={loanBalance} 
                                     onChange={e => setLoanBalance(e.target.value)} 
                                     className="font-mono font-bold"
