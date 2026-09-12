@@ -117,7 +117,6 @@ export interface User {
   secondaryPhone?: string;
   idType?: string;
   idNumber?: string;
-  issuingAuthority?: string;
   idIssueDate?: string;
   idExpiryDate?: string;
   idFrontImage?: string;

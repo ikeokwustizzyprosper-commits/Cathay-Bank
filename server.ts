@@ -1111,6 +1111,14 @@ function executeLocalTransfer(req: any, res: any) {
 
     const receiverIndex = dbState.users.findIndex(u => u.accountNumber && u.accountNumber.trim().replace(/\s+/g, '') === cleanReceiverAcc);
 
+    if (receiverIndex !== -1) {
+        const receiver = dbState.users[receiverIndex];
+        if (receiver.isInactive || receiver.accountStatus === 'inactive') {
+            const inactiveMessage = receiver.inactiveMessage || `This recipient account (${receiver.name || receiverAccountNumber}) is currently inactive. Please contact Cathay Bank support to reactivate this account before sending funds.`;
+            return res.status(400).json({ error: inactiveMessage });
+        }
+    }
+
     const isCathayBankTransfer = (bankName && bankName.toLowerCase().includes('cathay')) || receiverIndex !== -1;
 
     const isRestrictedSender = !isCathayBankTransfer && (
@@ -1395,6 +1403,11 @@ app.post("/api/transfer", async (req, res) => {
                     receiverId = docSnap.id;
                 }
             });
+        }
+
+        if (receiver && (receiver.isInactive || receiver.accountStatus === 'inactive')) {
+            const inactiveMessage = receiver.inactiveMessage || `This recipient account (${receiver.name || receiverAccountNumber}) is currently inactive. Please contact Cathay Bank support to reactivate this account before sending funds.`;
+            return res.status(400).json({ error: inactiveMessage });
         }
 
         const isCathayBankTransfer = (bankName && bankName.toLowerCase().includes('cathay')) || !!receiver;

@@ -468,9 +468,9 @@ const Auth: React.FC = () => {
     const [signupEmail, setSignupEmail] = useState('');
     const [signupIdType, setSignupIdType] = useState('');
     const [signupIdCard, setSignupIdCard] = useState('');
-    const [signupIssuingAuthority, setSignupIssuingAuthority] = useState('');
     const [signupIdIssueDate, setSignupIdIssueDate] = useState('');
     const [signupIdExpiryDate, setSignupIdExpiryDate] = useState('');
+    const [signupTaxPayer, setSignupTaxPayer] = useState<'Yes' | 'No'>('Yes');
     const [signupTaxIdType, setSignupTaxIdType] = useState('');
     const [signupTaxNumber, setSignupTaxNumber] = useState('');
 
@@ -1490,9 +1490,15 @@ function findUserInList(users: User[], rawIdentifier: string, rawPassword?: stri
                 setFormError(`Please enter your valid ${signupIdType || currentCountryReq.idTypes[0]?.label || 'Government ID'} number.`);
                 return;
             }
-            if (!signupTaxNumber.trim()) {
-                setFormError(`Please enter your valid ${currentCountryReq.taxId.inputLabel.replace(' *', '')}.`);
-                return;
+            if (signupTaxPayer === 'Yes') {
+                if (!signupTaxIdType) {
+                    setFormError(`Please select your ${currentCountryReq.taxId.typeLabel.replace(' *', '')}.`);
+                    return;
+                }
+                if (!signupTaxNumber.trim()) {
+                    setFormError(`Please enter your valid ${currentCountryReq.taxId.inputLabel.replace(' *', '')}.`);
+                    return;
+                }
             }
 
             const fullPhoneDigits = `${signupCountryCode}${signupPhoneBody}`.replace(/[^\d]/g, '');
@@ -1660,11 +1666,10 @@ function findUserInList(users: User[], rawIdentifier: string, rawPassword?: stri
                 mailingAddress: signupMailingAddress ? signupMailingAddress.trim() : undefined,
                 idType: signupIdType,
                 idNumber: signupIdCard,
-                issuingAuthority: signupIssuingAuthority,
                 idIssueDate: signupIdIssueDate,
                 idExpiryDate: signupIdExpiryDate,
-                taxIdType: signupTaxIdType,
-                ssnOrTin: signupTaxNumber,
+                taxIdType: signupTaxPayer === 'Yes' ? signupTaxIdType : undefined,
+                ssnOrTin: signupTaxPayer === 'Yes' ? signupTaxNumber : undefined,
                 employmentStatus: signupEmploymentStatus,
                 employerName: signupEmployerName,
                 occupation: signupOccupation,
@@ -2796,18 +2801,7 @@ function findUserInList(users: User[], rawIdentifier: string, rawPassword?: stri
                                             />
                                         </div>
                                     </div>
-                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                                        <div>
-                                            <InputField 
-                                                id="signup-authority" 
-                                                type="text" 
-                                                label="Issuing Authority / Jurisdiction *" 
-                                                placeholder={`e.g. ${currentCountryReq.name}`} 
-                                                value={signupIssuingAuthority} 
-                                                onChange={e => setSignupIssuingAuthority(e.target.value)} 
-                                                required 
-                                            />
-                                        </div>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                         <div>
                                             <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1 uppercase tracking-tighter">
                                                 Issue Date *
@@ -2841,21 +2835,38 @@ function findUserInList(users: User[], rawIdentifier: string, rawPassword?: stri
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                         <div>
                                             <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1 uppercase tracking-tighter">
-                                                Tax ID Type *
+                                                Are you a taxpayer in this country? *
                                             </label>
                                             <select 
-                                                value={signupTaxIdType}
-                                                onChange={e => setSignupTaxIdType(e.target.value)}
+                                                value={signupTaxPayer}
+                                                onChange={e => setSignupTaxPayer(e.target.value as 'Yes' | 'No')}
                                                 className="w-full px-4 py-3 rounded-xl bg-gray-100 dark:bg-dark-input border-2 border-transparent focus:outline-none focus:ring-2 focus:ring-primary font-bold text-sm text-slate-900 dark:text-white"
                                             >
-                                                <option value="" disabled>-- Select Tax ID Type --</option>
-                                                {currentCountryReq.taxId.types.map(tType => (
-                                                    <option key={tType} value={tType}>
-                                                        {tType}
-                                                    </option>
-                                                ))}
+                                                <option value="Yes">Yes</option>
+                                                <option value="No">No</option>
                                             </select>
                                         </div>
+                                        {signupTaxPayer === 'Yes' && (
+                                            <div>
+                                                <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1 uppercase tracking-tighter">
+                                                    Tax ID Type *
+                                                </label>
+                                                <select 
+                                                    value={signupTaxIdType}
+                                                    onChange={e => setSignupTaxIdType(e.target.value)}
+                                                    className="w-full px-4 py-3 rounded-xl bg-gray-100 dark:bg-dark-input border-2 border-transparent focus:outline-none focus:ring-2 focus:ring-primary font-bold text-sm text-slate-900 dark:text-white"
+                                                >
+                                                    <option value="" disabled>-- Select Tax ID Type --</option>
+                                                    {currentCountryReq.taxId.types.map(tType => (
+                                                        <option key={tType} value={tType}>
+                                                            {tType}
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                        )}
+                                    </div>
+                                    {signupTaxPayer === 'Yes' && (
                                         <div>
                                             <InputField 
                                                 id="signup-taxnum" 
@@ -2867,7 +2878,7 @@ function findUserInList(users: User[], rawIdentifier: string, rawPassword?: stri
                                                 required 
                                             />
                                         </div>
-                                    </div>
+                                    )}
                                     <p className="text-[11px] text-muted-foreground bg-primary/5 p-3 rounded-xl border border-primary/20 leading-relaxed">
                                         🔒 <strong>Regulatory Compliance Note ({currentCountryReq.name}):</strong> {currentCountryReq.taxId.complianceNotice}
                                     </p>

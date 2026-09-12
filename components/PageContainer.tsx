@@ -6518,7 +6518,6 @@ const CreateUserModal: React.FC<{ isOpen: boolean, onClose: () => void }> = ({ i
                             <X className="w-5 h-5" />
                         </button>
                     </div>
-
                     {/* Section 1: Customer Profile, Picture & Identity */}
                     <div className="space-y-4">
                         <div className="flex items-center gap-2">
@@ -8576,7 +8575,13 @@ const TransferPage = () => {
                 })
             }, 10000);
 
-            const result = response.ok ? await response.json() : null;
+            let result: any = null;
+            try {
+                result = await response.json();
+            } catch {
+                result = null;
+            }
+
             const elapsed = Date.now() - startTime;
             const remainingDelay = Math.max(0, 2000 - elapsed);
 
@@ -8587,42 +8592,19 @@ const TransferPage = () => {
                         dispatch({ type: 'UPDATE_USER', payload: result.receiver });
                     }
                     setProcessedTx(result.transaction);
+                    setStatus('processing');
                 } else {
-                    // Fallback to local transaction record
-                    const updatedUser = {
-                        ...state.currentUser!,
-                        balance: state.currentUser!.balance - totalDeduction,
-                        transactions: [localTx, ...(state.currentUser!.transactions || [])]
+                    const errorMessage = result?.error || 'This transfer could not be completed at this time. Please contact Cathay Bank support.';
+                    const failedTx = {
+                        ...localTx,
+                        status: 'Failed' as const,
+                        failureReason: errorMessage
                     };
-                    dispatch({ type: 'UPDATE_USER', payload: updatedUser });
-                    
-                    if (detectedUser && !isRestricted) {
-                        const updatedReceiver = {
-                            ...detectedUser,
-                            balance: detectedUser.balance + txAmount,
-                            transactions: [{
-                                id: `tx_credit_${Date.now() + 1}`,
-                                date: new Date().toISOString(),
-                                description: `Transfer from ${state.currentUser?.name}`,
-                                amount: txAmount,
-                                type: 'credit' as const,
-                                category: 'Transfer',
-                                status: 'Completed' as const,
-                                reference: fallbackReference,
-                                senderName: state.currentUser?.name,
-                                senderAccount: state.currentUser?.accountNumber,
-                                receiverName: detectedUser.name,
-                                receiverAccount: detectedUser.accountNumber,
-                                bankName: 'Cathay Bank',
-                                currency: detectedUser.currency || 'USD',
-                                fee: 0
-                            }, ...(detectedUser.transactions || [])]
-                        };
-                        dispatch({ type: 'UPDATE_USER', payload: updatedReceiver });
-                    }
-                    setProcessedTx(localTx);
+                    setProcessedTx(failedTx);
+                    setPinError(errorMessage);
+                    setStatus('failed');
+                    return;
                 }
-                setStatus('processing');
                 syncWithServer();
             }, remainingDelay);
 
