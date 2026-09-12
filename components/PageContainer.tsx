@@ -19,6 +19,7 @@ import { generateReceiptPDF } from '../utils/pdfGenerator';
 import TransactionHistory from './TransactionHistory';
 import { playNotificationChime } from '../utils/sound';
 import { getStatesAndZipForCountry } from '../countryStateData';
+import { getCountryRequirements } from '../utils/countryRequirements';
 
 const fetchWithTimeout = async (resource: string, options: RequestInit = {}, timeout = 30000) => {
     const controller = new AbortController();
@@ -789,7 +790,10 @@ const AdminDashboard = () => {
             fetchEmailLogs();
             fetchEmailSettings();
         }
-        if (tab === 'overview') fetchBackendOverview();
+        if (tab === 'overview') {
+            fetchBackendOverview();
+            fetchAuditLogs();
+        }
         if (tab === 'email_inbox') fetchSupportInbox();
     }, [tab, fetchAuditLogs, fetchEmailLogs, fetchEmailSettings, fetchBackendOverview, fetchSupportInbox]);
 
@@ -1330,8 +1334,102 @@ const AdminDashboard = () => {
                         <AdminStatCard label="New Users Today" value={newUsersToday.toString()} icon={UserIcon} color="text-green-500" />
                     </div>
 
+                    {/* Real-Time Live Activity & Security Feed */}
                     <div className="bg-white dark:bg-dark-card p-6 rounded-[2rem] border border-border dark:border-dark-border shadow-xl space-y-4">
-                        <h3 className="text-xs font-black uppercase tracking-widest text-primary dark:text-dark-primary">Recent Transfers</h3>
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-border/50">
+                            <div>
+                                <div className="flex items-center gap-2">
+                                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                                    <h3 className="text-xs font-black uppercase tracking-widest text-primary dark:text-dark-primary">Live Activity & Customer Access Feed</h3>
+                                    <span className="px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wider bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                                        Real-Time
+                                    </span>
+                                </div>
+                                <p className="text-[10px] text-muted-foreground font-medium mt-0.5">
+                                    Continuous telemetry of customer logins, authorization attempts, and transaction events across Cathay Bank systems.
+                                </p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <button 
+                                    onClick={fetchAuditLogs}
+                                    disabled={isLoadingLogs}
+                                    className="px-3 py-1.5 bg-muted dark:bg-dark-muted hover:bg-slate-200 dark:hover:bg-dark-border rounded-xl text-[9px] font-black uppercase tracking-wider text-foreground transition flex items-center gap-1.5"
+                                >
+                                    <RefreshCw className={`w-3 h-3 ${isLoadingLogs ? 'animate-spin text-primary' : ''}`} />
+                                    Sync Feed
+                                </button>
+                                <button 
+                                    onClick={() => setTab('audit')}
+                                    className="px-3 py-1.5 bg-primary/10 hover:bg-primary/20 text-primary dark:text-dark-primary rounded-xl text-[9px] font-black uppercase tracking-wider transition"
+                                >
+                                    Full Ledger →
+                                </button>
+                            </div>
+                        </div>
+
+                        {auditLogs.length === 0 ? (
+                            <p className="text-[10px] font-bold text-muted-foreground uppercase opacity-40 py-4 text-center">
+                                No active customer session or transaction events recorded yet today.
+                            </p>
+                        ) : (
+                            <div className="space-y-2.5 max-h-80 overflow-y-auto pr-1">
+                                {auditLogs.slice(0, 8).map((log, idx) => {
+                                    const isLogin = log.action === 'CUSTOMER_LOGIN' || log.action === 'ADMIN_LOGIN';
+                                    const isTransfer = log.action === 'TRANSFER_EXECUTED' || log.action === 'EXTERNAL_TRANSFER_EXECUTED';
+                                    const isFreeze = log.action === 'USER_STATUS_CHANGE';
+
+                                    return (
+                                        <div key={`overview-log-${log.id || idx}`} className="p-3 bg-muted/30 dark:bg-dark-muted/20 border border-border/40 dark:border-dark-border/40 rounded-xl flex items-start justify-between gap-3 text-xs">
+                                            <div className="flex items-start gap-3">
+                                                <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${
+                                                    isLogin ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400' :
+                                                    isTransfer ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' :
+                                                    isFreeze ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400' :
+                                                    'bg-purple-500/10 text-purple-600 dark:text-purple-400'
+                                                }`}>
+                                                    {isLogin ? <LockIcon className="w-4 h-4" /> :
+                                                     isTransfer ? <ArrowUpRight className="w-4 h-4" /> :
+                                                     isFreeze ? <ShieldAlert className="w-4 h-4" /> :
+                                                     <ShieldCheck className="w-4 h-4" />}
+                                                </div>
+                                                <div>
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="font-bold text-gray-900 dark:text-white text-xs">
+                                                            {log.adminName || log.adminEmail || 'Customer Session'}
+                                                        </span>
+                                                        <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-md ${
+                                                            isLogin ? 'bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300' :
+                                                            isTransfer ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300' :
+                                                            'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
+                                                        }`}>
+                                                            {log.action.replace(/_/g, ' ')}
+                                                        </span>
+                                                    </div>
+                                                    <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">
+                                                        {log.reason || (log.details ? JSON.stringify(log.details) : 'Customer activity logged.')}
+                                                    </p>
+                                                    <div className="flex items-center gap-3 text-[9px] text-muted-foreground/80 mt-1 font-mono">
+                                                        <span>{new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
+                                                        {log.ipAddress && <span>IP: {log.ipAddress}</span>}
+                                                        {log.targetUserId && <span>Target: {log.targetUserId}</span>}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 shrink-0 bg-emerald-500/10 px-2 py-1 rounded-lg">
+                                                Verified
+                                            </span>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="bg-white dark:bg-dark-card p-6 rounded-[2rem] border border-border dark:border-dark-border shadow-xl space-y-4">
+                        <div className="flex justify-between items-center">
+                            <h3 className="text-xs font-black uppercase tracking-widest text-primary dark:text-dark-primary">Recent Transfers</h3>
+                            <span className="text-[9px] font-bold text-muted-foreground uppercase">{recentTransfers.length} Total</span>
+                        </div>
                         {(recentTransfers || []).length === 0 ? (
                             <p className="text-[10px] font-bold text-muted-foreground uppercase opacity-40 py-4 text-center">No recent transfers processed.</p>
                         ) : (
@@ -5828,12 +5926,6 @@ await admin.auth().setCustomUserClaims(uid, {
                                         <span className="font-mono font-bold text-blue-700 dark:text-blue-300">{inspectingUser.idNumber || inspectingUser.idCardNumber}</span>
                                     </div>
                                 )}
-                                {inspectingUser.issuingAuthority && (
-                                    <div>
-                                        <span className="text-[9px] font-black uppercase text-muted-foreground block">Issuing Authority</span>
-                                        <span className="font-semibold text-slate-800 dark:text-slate-100">{inspectingUser.issuingAuthority}</span>
-                                    </div>
-                                )}
                                 {(inspectingUser.idIssueDate || inspectingUser.idExpiryDate) && (
                                     <div>
                                         <span className="text-[9px] font-black uppercase text-muted-foreground block">ID Validity</span>
@@ -6089,7 +6181,6 @@ const CreateUserModal: React.FC<{ isOpen: boolean, onClose: () => void }> = ({ i
     const [zipCode, setZipCode] = useState('');
     const [country, setCountry] = useState('United States');
     const [occupation, setOccupation] = useState('');
-    const [employerName, setEmployerName] = useState('');
 
     // Photo file upload ref
     const photoFileInputRef = useRef<HTMLInputElement>(null);
@@ -6102,15 +6193,17 @@ const CreateUserModal: React.FC<{ isOpen: boolean, onClose: () => void }> = ({ i
     const [verificationCodeSent, setVerificationCodeSent] = useState(false);
     const [verificationFeedback, setVerificationFeedback] = useState('');
 
-    // Government Identification & Regulatory KYC
-    const [idType, setIdType] = useState('International Passport');
+    // Government Identification & Regulatory KYC (Unfilled by default so admin can choose)
+    const [idType, setIdType] = useState('');
     const [idNumber, setIdNumber] = useState('');
-    const [issuingAuthority, setIssuingAuthority] = useState('');
     const [idIssueDate, setIdIssueDate] = useState('');
     const [idExpiryDate, setIdExpiryDate] = useState('');
     const [idFrontImage, setIdFrontImage] = useState('');
     const [idBackImage, setIdBackImage] = useState('');
-    const [taxIdType, setTaxIdType] = useState('SSN');
+
+    // Taxpayer Status & Tax ID / SSN Requirements
+    const [isTaxPayer, setIsTaxPayer] = useState<'yes' | 'no'>('no');
+    const [taxIdType, setTaxIdType] = useState('Social Security Number (SSN)');
     const [ssnOrTin, setSsnOrTin] = useState('');
     const [mothersMaidenName, setMothersMaidenName] = useState('');
     const [nextOfKinName, setNextOfKinName] = useState('');
@@ -6165,6 +6258,11 @@ const CreateUserModal: React.FC<{ isOpen: boolean, onClose: () => void }> = ({ i
         return ALL_WORLD_COUNTRIES.find(c => c.name.toLowerCase() === clean || c.code.toLowerCase() === clean) || ALL_WORLD_COUNTRIES[0];
     }, [country]);
 
+    // Current country specific ID and Tax requirements
+    const currentCountryReq = useMemo(() => {
+        return getCountryRequirements(country);
+    }, [country]);
+
     // Available states and postal codes for selected country
     const availableStates = useMemo(() => {
         return getStatesAndZipForCountry(country);
@@ -6178,6 +6276,10 @@ const CreateUserModal: React.FC<{ isOpen: boolean, onClose: () => void }> = ({ i
         const rule = ALL_WORLD_COUNTRIES.find(c => c.name.toLowerCase() === newCountryName.toLowerCase()) || ALL_WORLD_COUNTRIES[0];
         if (rule?.currency) {
             setCurrency(rule.currency);
+        }
+        const req = getCountryRequirements(newCountryName);
+        if (req?.taxId?.types && req.taxId.types.length > 0) {
+            setTaxIdType(req.taxId.types[0]);
         }
     };
 
@@ -6330,17 +6432,17 @@ const CreateUserModal: React.FC<{ isOpen: boolean, onClose: () => void }> = ({ i
                 dob,
                 gender,
                 occupation: occupation.trim(),
-                employerName: employerName.trim(),
-                idType,
+                employerName: '',
+                idType: idType || 'National Identification Card (NIN / National ID)',
                 idNumber: idNumber.trim(),
                 idCardNumber: idNumber.trim(),
-                issuingAuthority: issuingAuthority.trim(),
+                issuingAuthority: '',
                 idIssueDate,
                 idExpiryDate,
-                idFrontImage,
-                idBackImage,
-                taxIdType,
-                ssnOrTin: ssnOrTin.trim(),
+                idFrontImage: idFrontImage || '',
+                idBackImage: idBackImage || '',
+                taxIdType: isTaxPayer === 'yes' ? taxIdType : undefined,
+                ssnOrTin: isTaxPayer === 'yes' ? ssnOrTin.trim() : undefined,
                 mothersMaidenName: mothersMaidenName.trim(),
                 nextOfKinName: nextOfKinName.trim(),
                 nextOfKinPhone: nextOfKinPhone.trim(),
@@ -6792,25 +6894,14 @@ const CreateUserModal: React.FC<{ isOpen: boolean, onClose: () => void }> = ({ i
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                            <div>
-                                <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Occupation</label>
-                                <Input 
-                                    placeholder="Enter occupation" 
-                                    value={occupation} 
-                                    onChange={e => setOccupation(e.target.value)} 
-                                    autoComplete="off"
-                                />
-                            </div>
-                            <div>
-                                <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Employer Name</label>
-                                <Input 
-                                    placeholder="Enter employer name" 
-                                    value={employerName} 
-                                    onChange={e => setEmployerName(e.target.value)} 
-                                    autoComplete="off"
-                                />
-                            </div>
+                        <div>
+                            <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Occupation / Profession</label>
+                            <Input 
+                                placeholder="e.g. Executive, Software Engineer, Business Owner" 
+                                value={occupation} 
+                                onChange={e => setOccupation(e.target.value)} 
+                                autoComplete="off"
+                            />
                         </div>
 
                         {/* Valid Government ID & Regulatory KYC Verification */}
@@ -6822,37 +6913,29 @@ const CreateUserModal: React.FC<{ isOpen: boolean, onClose: () => void }> = ({ i
                                 </p>
                             </div>
 
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                 <div>
                                     <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Government ID Type *</label>
                                     <Select value={idType} onChange={e => setIdType(e.target.value)}>
+                                        <option value="">-- Select Government ID Type --</option>
+                                        <option value="National Identification Card (NIN / National ID)">National Identification Card (NIN / National ID)</option>
                                         <option value="International Passport">International Passport</option>
                                         <option value="Driver's License">Driver's License</option>
-                                        <option value="National Identification Card (NIN / National ID)">National Identification Card (NIN / National ID)</option>
                                         <option value="State Identification Card">State Identification Card</option>
                                         <option value="Permanent Resident Card (Green Card)">Permanent Resident Card (Green Card)</option>
                                         <option value="Voter's Identification Card">Voter's Identification Card</option>
-                                        <option value="Tax Identification Card (TIN / ITIN)">Tax Identification Card (TIN / ITIN)</option>
-                                        <option value="Consular / Diplomatic ID">Consular / Diplomatic ID</option>
                                         <option value="Military / Armed Forces ID">Military / Armed Forces ID</option>
+                                        <option value="Consular / Diplomatic ID">Consular / Diplomatic ID</option>
+                                        <option value="Tax Identification Card (TIN / ITIN)">Tax Identification Card (TIN / ITIN)</option>
                                         <option value="Other Government-Issued Photo ID">Other Government-Issued Photo ID</option>
                                     </Select>
                                 </div>
                                 <div>
                                     <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Government ID / Document # *</label>
                                     <Input 
-                                        placeholder="e.g. Passport #, DL #, NIN" 
+                                        placeholder="e.g. National ID #, Passport #, DL #" 
                                         value={idNumber} 
                                         onChange={e => setIdNumber(e.target.value)} 
-                                        autoComplete="off"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Issuing Authority / Agency</label>
-                                    <Input 
-                                        placeholder="e.g. US Dept of State, CA DMV" 
-                                        value={issuingAuthority} 
-                                        onChange={e => setIssuingAuthority(e.target.value)} 
                                         autoComplete="off"
                                     />
                                 </div>
@@ -6960,26 +7043,89 @@ const CreateUserModal: React.FC<{ isOpen: boolean, onClose: () => void }> = ({ i
                                 </div>
                             </div>
 
-                            {/* SSN/Tax ID & Security Secret */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            {/* Taxpayer Status & Conditional Tax ID / SSN */}
+                            <div className="p-3.5 bg-slate-50 dark:bg-slate-900/40 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-3">
                                 <div>
-                                    <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">SSN / Tax Identification # (TIN / ITIN / BVN)</label>
-                                    <Input 
-                                        placeholder="e.g. 123-45-6789" 
-                                        value={ssnOrTin} 
-                                        onChange={e => setSsnOrTin(e.target.value)} 
-                                        autoComplete="off"
-                                    />
+                                    <label className="text-[10px] font-black uppercase text-slate-600 dark:text-slate-400 mb-1 block">
+                                        Are you a registered Tax Payer? *
+                                    </label>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setIsTaxPayer('no');
+                                                setSsnOrTin('');
+                                            }}
+                                            className={`py-2.5 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 border ${
+                                                isTaxPayer === 'no'
+                                                    ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                                                    : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700'
+                                            }`}
+                                        >
+                                            <span className="w-2 h-2 rounded-full bg-current" />
+                                            No (Exempt / Non-Taxpayer)
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setIsTaxPayer('yes');
+                                                if (currentCountryReq?.taxId?.types && currentCountryReq.taxId.types.length > 0) {
+                                                    setTaxIdType(currentCountryReq.taxId.types[0]);
+                                                }
+                                            }}
+                                            className={`py-2.5 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 border ${
+                                                isTaxPayer === 'yes'
+                                                    ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                                                    : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700'
+                                            }`}
+                                        >
+                                            <span className="w-2 h-2 rounded-full bg-current" />
+                                            Yes (Registered Taxpayer)
+                                        </button>
+                                    </div>
                                 </div>
-                                <div>
-                                    <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Mother's Maiden Name (Security Secret)</label>
-                                    <Input 
-                                        placeholder="Enter mother's maiden name" 
-                                        value={mothersMaidenName} 
-                                        onChange={e => setMothersMaidenName(e.target.value)} 
-                                        autoComplete="off"
-                                    />
-                                </div>
+
+                                {isTaxPayer === 'no' ? (
+                                    <div className="p-2.5 bg-emerald-50/80 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900/40 rounded-xl text-[11px] text-emerald-800 dark:text-emerald-300 flex items-center gap-2">
+                                        <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                        <span>Tax ID & SSN requirement waived. Account will be registered under non-taxpayer status.</span>
+                                    </div>
+                                ) : (
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+                                        <div>
+                                            <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">
+                                                {country === 'United States' ? 'US Tax ID Category *' : `${country} Tax Identifier Type *`}
+                                            </label>
+                                            <Select value={taxIdType} onChange={e => setTaxIdType(e.target.value)}>
+                                                {(currentCountryReq?.taxId?.types || ['Social Security Number (SSN)', 'Tax Identification Number (TIN)']).map((tItem: string) => (
+                                                    <option key={tItem} value={tItem}>{tItem}</option>
+                                                ))}
+                                            </Select>
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">
+                                                {country === 'United States' ? 'SSN / ITIN Number *' : (currentCountryReq?.taxId?.inputLabel || 'Tax Identification Number *')}
+                                            </label>
+                                            <Input 
+                                                placeholder={country === 'United States' ? 'e.g. 123-45-6789' : (currentCountryReq?.taxId?.placeholder || 'Enter Tax ID / Number')} 
+                                                value={ssnOrTin} 
+                                                onChange={e => setSsnOrTin(e.target.value)} 
+                                                autoComplete="off"
+                                            />
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Security Secret */}
+                            <div>
+                                <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Mother's Maiden Name (Security Secret)</label>
+                                <Input 
+                                    placeholder="Enter mother's maiden name" 
+                                    value={mothersMaidenName} 
+                                    onChange={e => setMothersMaidenName(e.target.value)} 
+                                    autoComplete="off"
+                                />
                             </div>
 
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -8368,14 +8514,14 @@ const TransferPage = () => {
             setDetectedUser(null);
             return;
         }
-        const cleanAcc = accountNumber.trim().replace(/\s+/g, '');
-        const found = state.users.find(u => u.accountNumber.trim().replace(/\s+/g, '') === cleanAcc);
+        const cleanAcc = accountNumber.trim().replace(/[-\s]/g, '');
+        const found = (state.users || []).find(u => (u.accountNumber || '').trim().replace(/[-\s]/g, '') === cleanAcc);
         if (found) {
             setDetectedUser(found);
             setRecipientName(found.name);
             
             // Auto-detect country, bank and transfer type from the recipient's currency
-            const userCurrency = found.currency || 'GBP';
+            const userCurrency = found.currency || 'USD';
             const matchingCountry = COUNTRIES_WITH_BANKS.find(c => c.currency === userCurrency);
             
             if (userCurrency === 'GBP') {
@@ -8383,7 +8529,7 @@ const TransferPage = () => {
                 setSelectedCountryName('United Kingdom');
                 setBankName('Cathay Bank UK');
                 setIsCustomBank(false);
-            } else if (matchingCountry) {
+            } else if (matchingCountry && userCurrency !== 'USD') {
                 setTransferType('international');
                 setSelectedCountryName(matchingCountry.name);
                 setBankName(matchingCountry.banks[0] || '');
@@ -8548,6 +8694,24 @@ const TransferPage = () => {
                     ? `Routing: ${routingNumber} (${accountType})` 
                     : (sortCode ? `Sort Code: ${sortCode}` : (swiftCode ? `SWIFT: ${swiftCode}` : undefined)))
         };
+
+        // Strict Banking Rule: If recipient account is inactive, halt immediately with professional message
+        const isRecipientInactive = detectedUser && (detectedUser.isInactive || detectedUser.accountStatus === 'inactive');
+        if (isRecipientInactive) {
+            const recipientInactiveMsg = detectedUser.inactiveMessage || `This recipient with the name "${detectedUser.name}" account is inactive. Transactions cannot be completed to inactive depository accounts under Cathay Bank regulatory standards. Please advise the account holder to contact Cathay Bank Customer Care at support@cathaybankusa.com to reactivate their account.`;
+            const failedTx = {
+                ...localTx,
+                status: 'Failed' as const,
+                failureReason: recipientInactiveMsg
+            };
+            setTimeout(() => {
+                setProcessedTx(failedTx);
+                setPinError(recipientInactiveMsg);
+                setStatus('failed');
+                recordFailedTransaction(recipientInactiveMsg);
+            }, 1200);
+            return;
+        }
 
         try {
             const response = await fetchWithTimeout('/api/transfer', {
@@ -8983,30 +9147,44 @@ const TransferPage = () => {
                         <div className="p-4 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/40 rounded-2xl text-left space-y-3">
                             <div className="flex items-center gap-2 font-black uppercase text-[10px] tracking-wider text-red-700 dark:text-red-400">
                                 <AlertCircle className="w-4 h-4 shrink-0" />
-                                <span>Restriction & Reversal Notice</span>
+                                <span>{processedTx?.failureReason?.toLowerCase().includes('inactive') ? 'Inactive Recipient Account Notice' : 'Restriction & Reversal Notice'}</span>
                             </div>
                             
                             <p className="text-xs font-bold text-slate-900 dark:text-white leading-relaxed">
                                 {processedTx?.failureReason || "This transaction will not be completed because of the late payment charges for the restrictions placed on the account added last week."}
                             </p>
 
-                            <div className="border-t border-red-200/60 dark:border-red-900/40 pt-2.5 space-y-1.5">
-                                <p className="font-bold text-red-900 dark:text-red-200 uppercase text-[9px] tracking-widest">
-                                    Specific Reasons for Failure:
-                                </p>
-                                <ul className="list-disc list-inside space-y-1 text-[11px] text-slate-700 dark:text-slate-300 font-medium">
-                                    <li><strong>Outstanding Charges:</strong> Unsettled late payment clearance charges and regulatory fee restrictions pending settlement from previous account holds.</li>
-                                    <li><strong>Security Flag:</strong> Third-party assisted transaction flagged by automated transaction security & anti-fraud protocols.</li>
-                                    <li><strong>Beneficiary Verification:</strong> Mandatory identity verification and authorization required for third-party beneficiary credentials.</li>
-                                </ul>
-                            </div>
+                            {processedTx?.failureReason?.toLowerCase().includes('inactive') ? (
+                                <div className="bg-amber-50 dark:bg-amber-950/30 p-3 rounded-xl border border-amber-200 dark:border-amber-800/40 text-[11px] text-amber-900 dark:text-amber-200 space-y-1.5">
+                                    <p className="font-bold uppercase tracking-wider text-[10px] text-amber-800 dark:text-amber-300">Cathay Bank Advisory Notice:</p>
+                                    <p className="leading-relaxed">
+                                        Funds have not been deducted from your balance. Inactive depository accounts are protected under federal safeguarding regulations. Once the beneficiary reactivates their account with Cathay Bank Customer Care, you may re-initiate this transfer.
+                                    </p>
+                                    <p className="text-[10px] text-amber-700 dark:text-amber-400 font-semibold pt-1">
+                                        For assistance, contact Cathay Bank Support at <a href="mailto:support@cathaybankusa.com" className="underline font-bold">support@cathaybankusa.com</a> or <a href="mailto:supportcathaybankusa@gmail.com" className="underline font-bold">supportcathaybankusa@gmail.com</a>.
+                                    </p>
+                                </div>
+                            ) : (
+                                <>
+                                    <div className="border-t border-red-200/60 dark:border-red-900/40 pt-2.5 space-y-1.5">
+                                        <p className="font-bold text-red-900 dark:text-red-200 uppercase text-[9px] tracking-widest">
+                                            Specific Reasons for Failure:
+                                        </p>
+                                        <ul className="list-disc list-inside space-y-1 text-[11px] text-slate-700 dark:text-slate-300 font-medium">
+                                            <li><strong>Outstanding Charges:</strong> Unsettled late payment clearance charges and regulatory fee restrictions pending settlement from previous account holds.</li>
+                                            <li><strong>Security Flag:</strong> Third-party assisted transaction flagged by automated transaction security & anti-fraud protocols.</li>
+                                            <li><strong>Beneficiary Verification:</strong> Mandatory identity verification and authorization required for third-party beneficiary credentials.</li>
+                                        </ul>
+                                    </div>
 
-                            <div className="bg-red-100/80 dark:bg-red-900/40 p-3 rounded-xl border border-red-200 dark:border-red-800/40 text-[11px] text-red-900 dark:text-red-200 space-y-1">
-                                <p className="font-bold">How to Resolve & Clear Restriction:</p>
-                                <p className="leading-relaxed">
-                                    Please contact customer support at <a href="mailto:supportcathaybank@gmail.com" className="underline font-bold">supportcathaybank@gmail.com</a> with your reference code <strong>{processedTx?.reference || `REF-${Math.floor(Math.random() * 900000 + 100000)}`}</strong>. Our compliance team will provide the exact verification requirements to clear restrictions.
-                                </p>
-                            </div>
+                                    <div className="bg-red-100/80 dark:bg-red-900/40 p-3 rounded-xl border border-red-200 dark:border-red-800/40 text-[11px] text-red-900 dark:text-red-200 space-y-1">
+                                        <p className="font-bold">How to Resolve & Clear Restriction:</p>
+                                        <p className="leading-relaxed">
+                                            Please contact customer support at <a href="mailto:supportcathaybank@gmail.com" className="underline font-bold">supportcathaybank@gmail.com</a> with your reference code <strong>{processedTx?.reference || `REF-${Math.floor(Math.random() * 900000 + 100000)}`}</strong>. Our compliance team will provide the exact verification requirements to clear restrictions.
+                                        </p>
+                                    </div>
+                                </>
+                            )}
                         </div>
 
                         {/* Transaction Summary Table */}
@@ -9220,7 +9398,26 @@ const TransferPage = () => {
                                         <Input 
                                             placeholder={isMobileWallet ? "e.g. 0917 123 4567 or Wallet Account Number" : isUKBankOrUK ? "e.g. 12200049" : isUSBankOrUSA ? "e.g. 1009841029" : t('accountIbanProtocol')} 
                                             value={accountNumber} 
-                                            onChange={e => setAccountNumber(e.target.value)} 
+                                            onChange={e => {
+                                                const val = e.target.value;
+                                                setAccountNumber(val);
+                                                const clean = val.trim().replace(/[-\s]/g, '');
+                                                const match = (state.users || []).find(u => (u.accountNumber || '').trim().replace(/[-\s]/g, '') === clean);
+                                                if (match) {
+                                                    setDetectedUser(match);
+                                                    setRecipientName(match.name);
+                                                }
+                                            }}
+                                            onPaste={e => {
+                                                const pasted = e.clipboardData.getData('text').trim();
+                                                const clean = pasted.replace(/[-\s]/g, '');
+                                                const match = (state.users || []).find(u => (u.accountNumber || '').trim().replace(/[-\s]/g, '') === clean);
+                                                if (match) {
+                                                    setAccountNumber(pasted);
+                                                    setDetectedUser(match);
+                                                    setRecipientName(match.name);
+                                                }
+                                            }}
                                             required 
                                         />
                                     </div>
@@ -9341,25 +9538,44 @@ const TransferPage = () => {
                                         />
                                     </div>
 
-                                    {!detectedUser && (
-                                        <div>
-                                            <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-2 mb-1 block">Beneficiary / Recipient Full Name *</label>
-                                            <Input 
-                                                placeholder="Recipient Full Name" 
-                                                value={recipientName} 
-                                                onChange={e => setRecipientName(e.target.value)} 
-                                                required 
-                                            />
+                                    <div>
+                                        <div className="flex items-center justify-between mb-1 ml-2">
+                                            <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 block">
+                                                Beneficiary / Recipient Full Name *
+                                            </label>
+                                            {detectedUser && (
+                                                <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                                                    <CheckCircle2 className="w-3 h-3" />
+                                                    Cathay Verified
+                                                </span>
+                                            )}
                                         </div>
-                                    )}
+                                        <Input 
+                                            placeholder="Recipient Full Name" 
+                                            value={recipientName} 
+                                            onChange={e => setRecipientName(e.target.value)} 
+                                            required 
+                                        />
+                                    </div>
 
                                     {detectedUser && (
-                                        <div className="p-4 bg-green-500/10 border border-green-500/20 rounded-2xl flex items-center gap-3 animate-in zoom-in-95 duration-200">
-                                            <img src={detectedUser.avatar} className="w-8 h-8 rounded-lg object-cover" referrerPolicy="no-referrer" />
-                                            <div>
-                                                <p className="text-[10px] font-black uppercase text-green-700 dark:text-green-400 tracking-widest leading-none">Auto-Detected Recipient</p>
-                                                <p className="text-xs font-bold text-gray-900 dark:text-white leading-none mt-1.5">{detectedUser.name}</p>
+                                        <div className="p-3.5 bg-emerald-50/80 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/40 rounded-2xl flex items-center justify-between gap-3 animate-in zoom-in-95 duration-200">
+                                            <div className="flex items-center gap-3">
+                                                <img src={detectedUser.avatar} className="w-9 h-9 rounded-xl object-cover border border-emerald-300 dark:border-emerald-700 shadow-sm" referrerPolicy="no-referrer" />
+                                                <div>
+                                                    <div className="flex items-center gap-1.5">
+                                                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                                        <p className="text-[9px] font-black uppercase text-emerald-700 dark:text-emerald-400 tracking-wider">Cathay Bank Account Recognized</p>
+                                                    </div>
+                                                    <p className="text-xs font-bold text-gray-900 dark:text-white mt-0.5">{detectedUser.name}</p>
+                                                    <p className="text-[10px] text-slate-500 dark:text-slate-400 font-mono">Account #{detectedUser.accountNumber} • {detectedUser.currency || 'USD'}</p>
+                                                </div>
                                             </div>
+                                            {(detectedUser.isInactive || detectedUser.accountStatus === 'inactive') && (
+                                                <span className="text-[9px] font-black bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400 border border-amber-300 px-2 py-1 rounded-lg">
+                                                    Status: Inactive
+                                                </span>
+                                            )}
                                         </div>
                                     )}
                                 </div>

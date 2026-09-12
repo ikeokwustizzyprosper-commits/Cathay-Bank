@@ -9,7 +9,7 @@ import {
     AlertTriangle, ChevronRight, RefreshCw, Smartphone, UserCheck, CreditCard, 
     DollarSign, Upload, Camera, Copy, CheckCircle2, FileText, BadgeCheck, 
     Briefcase, Landmark, User as UserIcon, Mail, Shield, Award, CheckSquare, Square,
-    Clock
+    Clock, Snowflake
 } from 'lucide-react';
 import RollingCodeDisplay from './RollingCode';
 import TermsModal from './TermsModal';

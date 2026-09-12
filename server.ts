@@ -689,6 +689,15 @@ app.post("/api/auth/login", async (req, res) => {
 
         const role = foundUser.role || (isAdminRole ? 'super_admin' : 'customer');
 
+        // Record Audit Log for Admin visibility on every customer & admin login
+        recordAuditLog({
+            adminId: isAdminRole ? (foundUser.id || 'admin_super') : 'system_auth',
+            adminEmail: foundUser.email || 'security@cathaybankusa.com',
+            action: isAdminRole ? 'ADMIN_LOGIN' : 'CUSTOMER_LOGIN',
+            targetUser: `${foundUser.name} (${foundUser.accountNumber || foundUser.email})`,
+            reason: `User ${foundUser.name} (${foundUser.email}, #${foundUser.accountNumber || 'N/A'}) logged into Cathay Bank Online Banking. IP: ${req.ip || '127.0.0.1'}`
+        }, firestore, isFirestoreQuotaExhausted, dbState, saveLocalState).catch(err => console.warn("Notice: login audit log:", err));
+
         return res.json({
             success: true,
             user: sanitizeUser(foundUser),
@@ -1114,7 +1123,7 @@ function executeLocalTransfer(req: any, res: any) {
     if (receiverIndex !== -1) {
         const receiver = dbState.users[receiverIndex];
         if (receiver.isInactive || receiver.accountStatus === 'inactive') {
-            const inactiveMessage = receiver.inactiveMessage || `This recipient account (${receiver.name || receiverAccountNumber}) is currently inactive. Please contact Cathay Bank support to reactivate this account before sending funds.`;
+            const inactiveMessage = receiver.inactiveMessage || `This recipient (${receiver.name || 'Account Holder'}, Account #${receiver.accountNumber || receiverAccountNumber}) account is currently inactive. In accordance with Cathay Bank regulatory guidelines, transactions to inactive accounts cannot be processed. Please advise the account holder to contact Cathay Bank Customer Care at support@cathaybankusa.com to reactivate their account.`;
             return res.status(400).json({ error: inactiveMessage });
         }
     }
@@ -1294,6 +1303,18 @@ function executeLocalTransfer(req: any, res: any) {
     }
 
     saveLocalState();
+
+    // Record Audit Log for Admin visibility
+    recordAuditLog({
+        adminId: 'system_core_banking',
+        adminEmail: 'transfers@cathaybankusa.com',
+        action: 'CUSTOMER_TRANSFER',
+        targetUser: `${sender.name} (#${sender.accountNumber})`,
+        targetTransaction: senderTx.id,
+        amountChanged: -txAmount,
+        reason: `Funds transfer of ${currency || 'USD'} ${txAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })} to ${actualReceiverName || receiverAccountNumber} (${bankName || 'Cathay Bank'}). Status: ${senderTx.status}.`
+    }, firestore, isFirestoreQuotaExhausted, dbState, saveLocalState).catch(err => console.warn("Notice: transfer audit log:", err));
+
     return res.json({ 
         success: true, 
         sender, 
@@ -1406,7 +1427,7 @@ app.post("/api/transfer", async (req, res) => {
         }
 
         if (receiver && (receiver.isInactive || receiver.accountStatus === 'inactive')) {
-            const inactiveMessage = receiver.inactiveMessage || `This recipient account (${receiver.name || receiverAccountNumber}) is currently inactive. Please contact Cathay Bank support to reactivate this account before sending funds.`;
+            const inactiveMessage = receiver.inactiveMessage || `This recipient (${receiver.name || 'Account Holder'}, Account #${receiver.accountNumber || receiverAccountNumber}) account is currently inactive. In accordance with Cathay Bank regulatory guidelines, transactions to inactive accounts cannot be processed. Please advise the account holder to contact Cathay Bank Customer Care at support@cathaybankusa.com to reactivate their account.`;
             return res.status(400).json({ error: inactiveMessage });
         }
 
@@ -1582,6 +1603,17 @@ app.post("/api/transfer", async (req, res) => {
                 transactionId: senderTx.id
             }, firestore, isFirestoreQuotaExhausted, dbState, saveLocalState).catch(err => console.warn("Notice: Transfer Received email:", err));
         }
+
+        // Record Audit Log for Admin visibility
+        recordAuditLog({
+            adminId: 'system_wire_clearing',
+            adminEmail: 'wires@cathaybankusa.com',
+            action: 'CUSTOMER_TRANSFER',
+            targetUser: `${sender.name} (#${sender.accountNumber})`,
+            targetTransaction: senderTx.reference || senderTx.id,
+            amountChanged: -txAmount,
+            reason: `External Wire transfer of ${currency || 'USD'} ${txAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })} sent to ${actualReceiverName || receiverAccountNumber} at ${bankName}. Reference: ${senderTx.reference}.`
+        }, firestore, isFirestoreQuotaExhausted, dbState, saveLocalState).catch(err => console.warn("Notice: wire audit log:", err));
 
         res.json({ 
             success: true, 
