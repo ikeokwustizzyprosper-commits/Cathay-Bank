@@ -252,126 +252,374 @@ export const COUNTRIES_WITH_BANKS = [
     { name: "Finland", currency: "EUR", banks: ["Nordea Finland", "OP Financial Group", "Danske Bank Finland"] },
 ];
 
-export const CURRENCY_DATA = [
-    { code: "GBP", symbol: "£", name: "British Pound", flag: "🇬🇧" },
-    { code: "USD", symbol: "$", name: "US Dollar", flag: "🇺🇸" },
-    { code: "EUR", symbol: "€", name: "Euro", flag: "🇪🇺" },
-    { code: "SAR", symbol: "﷼", name: "Saudi Riyal", flag: "🇸🇦" },
-    { code: "AED", symbol: "د.إ", name: "UAE Dirham", flag: "🇦🇪" },
-    { code: "CAD", symbol: "$", name: "Canadian Dollar", flag: "🇨🇦" },
-    { code: "AUD", symbol: "$", name: "Australian Dollar", flag: "🇦🇺" },
-    { code: "CHF", symbol: "CHF", name: "Swiss Franc", flag: "🇨🇭" },
-    { code: "JPY", symbol: "¥", name: "Japanese Yen", flag: "🇯🇵" },
-    { code: "CNY", symbol: "¥", name: "Chinese Yuan", flag: "🇨🇳" },
-    { code: "INR", symbol: "₹", name: "Indian Rupee", flag: "🇮🇳" },
-    { code: "BRL", symbol: "R$", name: "Brazilian Real", flag: "🇧🇷" },
-    { code: "MXN", symbol: "$", name: "Mexican Peso", flag: "🇲🇽" },
-    { code: "SGD", symbol: "$", name: "Singapore Dollar", flag: "🇸🇬" },
-    { code: "NZD", symbol: "$", name: "New Zealand Dollar", flag: "🇳🇿" },
-    { code: "HKD", symbol: "$", name: "Hong Kong Dollar", flag: "🇭🇰" },
-    { code: "KRW", symbol: "₩", name: "South Korean Won", flag: "🇰🇷" },
-    { code: "SEK", symbol: "kr", name: "Swedish Krona", flag: "🇸🇪" },
-    { code: "NOK", symbol: "kr", name: "Norwegian Krone", flag: "🇳🇴" },
-    { code: "DKK", symbol: "kr", name: "Danish Krone", flag: "🇩🇰" },
-    { code: "PLN", symbol: "zł", name: "Polish Zloty", flag: "🇵🇱" },
-    { code: "TRY", symbol: "₺", name: "Turkish Lira", flag: "🇹🇷" },
-    { code: "ZAR", symbol: "R", name: "South African Rand", flag: "🇿🇦" },
-    { code: "NGN", symbol: "₦", name: "Nigerian Naira", flag: "🇳🇬" },
-    { code: "EGP", symbol: "E£", name: "Egyptian Pound", flag: "🇪🇬" },
-    { code: "PHP", symbol: "₱", name: "Philippine Peso", flag: "🇵🇭" },
-    { code: "THB", symbol: "฿", name: "Thai Baht", flag: "🇹🇭" },
-    { code: "IDR", symbol: "Rp", name: "Indonesian Rupiah", flag: "🇮🇩" },
-    { code: "MYR", symbol: "RM", name: "Malaysian Ringgit", flag: "🇲🇾" },
-    { code: "VND", symbol: "₫", name: "Vietnamese Dong", flag: "🇻🇳" },
-    { code: "PKR", symbol: "Rs", name: "Pakistani Rupee", flag: "🇵🇰" },
-    { code: "BDT", symbol: "৳", name: "Bangladeshi Taka", flag: "🇧🇩" },
-    { code: "ILS", symbol: "₪", name: "Israeli Shekel", flag: "🇮🇱" },
-    { code: "QAR", symbol: "﷼", name: "Qatari Riyal", flag: "🇶🇦" },
-    { code: "KWD", symbol: "د.ك", name: "Kuwaiti Dinar", flag: "🇰🇼" },
-    { code: "OMR", symbol: "﷼", name: "Omani Rial", flag: "🇴🇲" },
-    { code: "BHD", symbol: ".د.ب", name: "Bahraini Dinar", flag: "🇧🇭" },
-    { code: "JOD", symbol: "JD", name: "Jordanian Dinar", flag: "🇯🇴" },
-    { code: "ARS", symbol: "$", name: "Argentine Peso", flag: "🇦🇷" },
-    { code: "CLP", symbol: "$", name: "Chilean Peso", flag: "🇨🇱" },
-    { code: "COP", symbol: "$", name: "Colombian Peso", flag: "🇨🇴" },
-    { code: "PEN", symbol: "S/", name: "Peruvian Sol", flag: "🇵🇪" },
-    { code: "VES", symbol: "Bs.", name: "Venezuelan Bolívar", flag: "🇻🇪" },
-    { code: "RUB", symbol: "₽", name: "Russian Ruble", flag: "🇷🇺" },
-    { code: "UAH", symbol: "₴", name: "Ukrainian Hryvnia", flag: "🇺🇦" },
-    { code: "CZK", symbol: "Kč", name: "Czech Koruna", flag: "🇨🇿" },
-    { code: "HUF", symbol: "Ft", name: "Hungarian Forint", flag: "🇭🇺" },
-    { code: "RON", symbol: "lei", name: "Romanian Leu", flag: "🇷🇴" },
-    { code: "KZT", symbol: "₸", name: "Kazakhstani Tenge", flag: "🇰🇿" },
-    { code: "SYP", symbol: "£S", name: "Syrian Pound", flag: "🇸🇾" },
-    { code: "LBP", symbol: "L£", name: "Lebanese Pound", flag: "🇱🇧" },
-    { code: "IQD", symbol: "IQD", name: "Iraqi Dinar", flag: "🇮🇶" },
-    { code: "GHS", symbol: "₵", name: "Ghanaian Cedi", flag: "🇬🇭" },
-    { code: "KES", symbol: "KSh", name: "Kenyan Shilling", flag: "🇰🇪" },
-    { code: "UGX", symbol: "USh", name: "Ugandan Shilling", flag: "🇺🇬" },
-    { code: "TZS", symbol: "TSh", name: "Tanzanian Shilling", flag: "🇹🇿" },
-    { code: "ETB", symbol: "Br", name: "Ethiopian Birr", flag: "🇪🇹" },
-    { code: "MAD", symbol: "DH", name: "Moroccan Dirham", flag: "🇲🇦" },
-    { code: "TND", symbol: "DT", name: "Tunisian Dinar", flag: "🇹🇳" },
-    { code: "DZD", symbol: "DA", name: "Algerian Dinar", flag: "🇩🇿" },
-    { code: "ZMW", symbol: "ZK", name: "Zambian Kwacha", flag: "🇿🇲" },
-    { code: "NPR", symbol: "Rs", name: "Nepalese Rupee", flag: "🇳🇵" },
-    { code: "LKR", symbol: "Rs", name: "Sri Lankan Rupee", flag: "🇱🇰" },
-    { code: "MVR", symbol: "Rf", name: "Maldivian Rufiyaa", flag: "🇲🇻" },
-    { code: "AFN", symbol: "؋", name: "Afghan Afghani", flag: "🇦🇫" },
-    { code: "MMK", symbol: "K", name: "Myanmar Kyat", flag: "🇲🇲" },
-    { code: "KHR", symbol: "៛", name: "Cambodian Riel", flag: "🇰🇭" },
-    { code: "LAK", symbol: "₭", name: "Lao Kip", flag: "🇱🇦" },
-    { code: "MNT", symbol: "₮", name: "Mongolian Tugrik", flag: "🇲🇳" },
-    { code: "AZN", symbol: "₼", name: "Azerbaijani Manat", flag: "🇦🇿" },
-    { code: "GEL", symbol: "₾", name: "Georgian Lari", flag: "🇬🇪" },
-    { code: "AMD", symbol: "֏", name: "Armenian Dram", flag: "🇦🇲" },
-    { code: "UZS", symbol: "so'm", name: "Uzbekistani Som", flag: "🇺🇿" },
-    { code: "KGS", symbol: "сом", name: "Kyrgyzstani Som", flag: "🇰🇬" },
-    { code: "TJS", symbol: "SM", name: "Tajikistani Somoni", flag: "🇹🇯" },
-    { code: "MGA", symbol: "Ar", name: "Malagasy Ariary", flag: "🇲🇬" },
-    { code: "MUR", symbol: "Rs", name: "Mauritian Rupee", flag: "🇲🇺" },
-    { code: "SCR", symbol: "SR", name: "Seychellois Rupee", flag: "🇸🇨" },
-    { code: "MWK", symbol: "MK", name: "Malawian Kwacha", flag: "🇲🇼" },
-    { code: "NAD", symbol: "N$", name: "Namibian Dollar", flag: "🇳🇦" },
-    { code: "BWP", symbol: "P", name: "Botswana Pula", flag: "🇧🇼" },
-    { code: "SZL", symbol: "E", name: "Swazi Lilangeni", flag: "🇸🇿" },
-    { code: "LSL", symbol: "L", name: "Lesotho Loti", flag: "🇱🇸" },
-    { code: "MZN", symbol: "MT", name: "Mozambican Metical", flag: "🇲🇿" },
-    { code: "AOA", symbol: "Kz", name: "Angolan Kwanza", flag: "🇦🇴" },
-    { code: "CDF", symbol: "FC", name: "Congolese Franc", flag: "🇨🇩" },
-    { code: "RWF", symbol: "FRw", name: "Rwandan Franc", flag: "🇷🇼" },
-    { code: "BIF", symbol: "FBu", name: "Burundian Franc", flag: "🇧🇮" },
-    { code: "SDG", symbol: "SDG", name: "Sudanese Pound", flag: "🇸🇩" },
-    { code: "SSP", symbol: "SSP", name: "South Sudanese Pound", flag: "🇸🇸" },
-    { code: "SOS", symbol: "Sh.So.", name: "Somali Shilling", flag: "🇸🇴" },
-    { code: "LYD", symbol: "LD", name: "Libyan Dinar", flag: "🇱🇾" },
-    { code: "BND", symbol: "B$", name: "Brunei Dollar", flag: "🇧🇳" },
-    { code: "FJD", symbol: "FJ$", name: "Fijian Dollar", flag: "🇫🇯" },
-    { code: "XPF", symbol: "CFP", name: "CFP Franc", flag: "🇵🇫" },
-    { code: "WST", symbol: "WS$", name: "Samoan Tala", flag: "🇼🇸" },
-    { code: "TOP", symbol: "T$", name: "Tongan Paʻanga", flag: "🇹🇴" },
-    { code: "VUV", symbol: "VT", name: "Vanuatu Vatu", flag: "🇻🇺" },
-    { code: "SBD", symbol: "SI$", name: "Solomon Islands Dollar", flag: "🇸🇧" },
-    { code: "PGK", symbol: "K", name: "Papua New Guinean Kina", flag: "🇵🇬" },
-    { code: "TWD", symbol: "NT$", name: "New Taiwan Dollar", flag: "🇹🇼" },
-    { code: "MOP", symbol: "MOP$", name: "Macanese Pataca", flag: "🇲🇴" },
-    { code: "DOP", symbol: "RD$", name: "Dominican Peso", flag: "🇩🇴" },
-    { code: "CRC", symbol: "₡", name: "Costa Rican Colón", flag: "🇨🇷" },
-    { code: "JMD", symbol: "J$", name: "Jamaican Dollar", flag: "🇯🇲" },
-    { code: "TTD", symbol: "TT$", name: "Trinidad & Tobago Dollar", flag: "🇹🇹" },
-    { code: "BBD", symbol: "Bds$", name: "Barbadian Dollar", flag: "🇧🇧" },
-    { code: "XCD", symbol: "EC$", name: "East Caribbean Dollar", flag: "🇦🇬" },
-    { code: "ISK", symbol: "kr", name: "Icelandic Króna", flag: "🇮🇸" },
-    { code: "BAM", symbol: "KM", name: "Bosnia Convertible Mark", flag: "🇧🇦" },
-    { code: "ALL", symbol: "L", name: "Albanian Lek", flag: "🇦🇱" },
-    { code: "MKD", symbol: "den", name: "Macedonian Denar", flag: "🇲🇰" },
-    { code: "RSD", symbol: "din.", name: "Serbian Dinar", flag: "🇷🇸" },
-    { code: "BGN", symbol: "lv", name: "Bulgarian Lev", flag: "🇧🇬" },
-    { code: "MDL", symbol: "L", name: "Moldovan Leu", flag: "🇲🇩" },
-    { code: "UYU", symbol: "$U", name: "Uruguayan Peso", flag: "🇺🇾" },
-    { code: "PYG", symbol: "₲", name: "Paraguayan Guaraní", flag: "🇵🇾" },
-    { code: "BOB", symbol: "Bs.", name: "Bolivian Boliviano", flag: "🇧🇴" },
+// --- MAJOR GLOBAL CURRENCIES & ALL WORLD CURRENCIES ---
+export interface CurrencyInfo {
+    code: string;
+    symbol: string;
+    name: string;
+    flag: string;
+    category?: 'major' | 'all';
+}
+
+export const MAJOR_CURRENCIES: CurrencyInfo[] = [
+    { code: "USD", symbol: "$", name: "US Dollar", flag: "🇺🇸", category: "major" },
+    { code: "EUR", symbol: "€", name: "Euro", flag: "🇪🇺", category: "major" },
+    { code: "GBP", symbol: "£", name: "British Pound", flag: "🇬🇧", category: "major" },
+    { code: "JPY", symbol: "¥", name: "Japanese Yen", flag: "🇯🇵", category: "major" },
+    { code: "CHF", symbol: "CHF", name: "Swiss Franc", flag: "🇨🇭", category: "major" },
+    { code: "CAD", symbol: "$", name: "Canadian Dollar", flag: "🇨🇦", category: "major" },
+    { code: "AUD", symbol: "$", name: "Australian Dollar", flag: "🇦🇺", category: "major" },
+    { code: "CNY", symbol: "¥", name: "Chinese Yuan", flag: "🇨🇳", category: "major" },
+    { code: "HKD", symbol: "$", name: "Hong Kong Dollar", flag: "🇭🇰", category: "major" },
+    { code: "SGD", symbol: "$", name: "Singapore Dollar", flag: "🇸🇬", category: "major" },
+    { code: "NZD", symbol: "$", name: "New Zealand Dollar", flag: "🇳🇿", category: "major" },
 ];
+
+export const ALL_WORLD_CURRENCIES: CurrencyInfo[] = [
+    { code: "AED", symbol: "د.إ", name: "UAE Dirham", flag: "🇦🇪" },
+    { code: "AFN", symbol: "؋", name: "Afghan Afghani", flag: "🇦🇫" },
+    { code: "ALL", symbol: "L", name: "Albanian Lek", flag: "🇦🇱" },
+    { code: "AMD", symbol: "֏", name: "Armenian Dram", flag: "🇦🇲" },
+    { code: "ANG", symbol: "ƒ", name: "Netherlands Antillean Guilder", flag: "🇨🇼" },
+    { code: "AOA", symbol: "Kz", name: "Angolan Kwanza", flag: "🇦🇴" },
+    { code: "ARS", symbol: "$", name: "Argentine Peso", flag: "🇦🇷" },
+    { code: "AUD", symbol: "$", name: "Australian Dollar", flag: "🇦🇺" },
+    { code: "AWG", symbol: "ƒ", name: "Aruban Florin", flag: "🇦🇼" },
+    { code: "AZN", symbol: "₼", name: "Azerbaijani Manat", flag: "🇦🇿" },
+    { code: "BAM", symbol: "KM", name: "Bosnia Convertible Mark", flag: "🇧🇦" },
+    { code: "BBD", symbol: "Bds$", name: "Barbadian Dollar", flag: "🇧🇧" },
+    { code: "BDT", symbol: "৳", name: "Bangladeshi Taka", flag: "🇧🇩" },
+    { code: "BGN", symbol: "lv", name: "Bulgarian Lev", flag: "🇧🇬" },
+    { code: "BHD", symbol: ".د.ب", name: "Bahraini Dinar", flag: "🇧🇭" },
+    { code: "BIF", symbol: "FBu", name: "Burundian Franc", flag: "🇧🇮" },
+    { code: "BMD", symbol: "$", name: "Bermudian Dollar", flag: "🇧🇲" },
+    { code: "BND", symbol: "B$", name: "Brunei Dollar", flag: "🇧🇳" },
+    { code: "BOB", symbol: "Bs.", name: "Bolivian Boliviano", flag: "🇧🇴" },
+    { code: "BRL", symbol: "R$", name: "Brazilian Real", flag: "🇧🇷" },
+    { code: "BSD", symbol: "B$", name: "Bahamian Dollar", flag: "🇧🇸" },
+    { code: "BTN", symbol: "Nu.", name: "Bhutanese Ngultrum", flag: "🇧🇹" },
+    { code: "BWP", symbol: "P", name: "Botswana Pula", flag: "🇧🇼" },
+    { code: "BYN", symbol: "Br", name: "Belarusian Ruble", flag: "🇧🇾" },
+    { code: "BZD", symbol: "BZ$", name: "Belize Dollar", flag: "🇧🇿" },
+    { code: "CAD", symbol: "$", name: "Canadian Dollar", flag: "🇨🇦" },
+    { code: "CDF", symbol: "FC", name: "Congolese Franc", flag: "🇨🇩" },
+    { code: "CHF", symbol: "CHF", name: "Swiss Franc", flag: "🇨🇭" },
+    { code: "CLP", symbol: "$", name: "Chilean Peso", flag: "🇨🇱" },
+    { code: "CNY", symbol: "¥", name: "Chinese Yuan", flag: "🇨🇳" },
+    { code: "COP", symbol: "$", name: "Colombian Peso", flag: "🇨🇴" },
+    { code: "CRC", symbol: "₡", name: "Costa Rican Colón", flag: "🇨🇷" },
+    { code: "CUP", symbol: "₱", name: "Cuban Peso", flag: "🇨🇺" },
+    { code: "CVE", symbol: "$", name: "Cape Verdean Escudo", flag: "🇨🇻" },
+    { code: "CZK", symbol: "Kč", name: "Czech Koruna", flag: "🇨🇿" },
+    { code: "DJF", symbol: "Fdj", name: "Djiboutian Franc", flag: "🇩🇯" },
+    { code: "DKK", symbol: "kr", name: "Danish Krone", flag: "🇩🇰" },
+    { code: "DOP", symbol: "RD$", name: "Dominican Peso", flag: "🇩🇴" },
+    { code: "DZD", symbol: "DA", name: "Algerian Dinar", flag: "🇩🇿" },
+    { code: "EGP", symbol: "E£", name: "Egyptian Pound", flag: "🇪🇬" },
+    { code: "ERN", symbol: "Nfk", name: "Eritrean Nakfa", flag: "🇪🇷" },
+    { code: "ETB", symbol: "Br", name: "Ethiopian Birr", flag: "🇪🇹" },
+    { code: "EUR", symbol: "€", name: "Euro", flag: "🇪🇺" },
+    { code: "FJD", symbol: "FJ$", name: "Fijian Dollar", flag: "🇫🇯" },
+    { code: "FKP", symbol: "£", name: "Falkland Islands Pound", flag: "🇫🇰" },
+    { code: "GBP", symbol: "£", name: "British Pound", flag: "🇬🇧" },
+    { code: "GEL", symbol: "₾", name: "Georgian Lari", flag: "🇬🇪" },
+    { code: "GHS", symbol: "₵", name: "Ghanaian Cedi", flag: "🇬🇭" },
+    { code: "GIP", symbol: "£", name: "Gibraltar Pound", flag: "🇬🇮" },
+    { code: "GMD", symbol: "D", name: "Gambian Dalasi", flag: "🇬🇲" },
+    { code: "GNF", symbol: "FG", name: "Guinean Franc", flag: "🇬🇳" },
+    { code: "GTQ", symbol: "Q", name: "Guatemalan Quetzal", flag: "🇬🇹" },
+    { code: "GYD", symbol: "G$", name: "Guyanese Dollar", flag: "🇬🇾" },
+    { code: "HKD", symbol: "$", name: "Hong Kong Dollar", flag: "🇭🇰" },
+    { code: "HNL", symbol: "L", name: "Honduran Lempira", flag: "🇭🇳" },
+    { code: "HTG", symbol: "G", name: "Haitian Gourde", flag: "🇭🇹" },
+    { code: "HUF", symbol: "Ft", name: "Hungarian Forint", flag: "🇭🇺" },
+    { code: "IDR", symbol: "Rp", name: "Indonesian Rupiah", flag: "🇮🇩" },
+    { code: "ILS", symbol: "₪", name: "Israeli Shekel", flag: "🇮🇱" },
+    { code: "INR", symbol: "₹", name: "Indian Rupee", flag: "🇮🇳" },
+    { code: "IQD", symbol: "IQD", name: "Iraqi Dinar", flag: "🇮🇶" },
+    { code: "IRR", symbol: "﷼", name: "Iranian Rial", flag: "🇮🇷" },
+    { code: "ISK", symbol: "kr", name: "Icelandic Króna", flag: "🇮🇸" },
+    { code: "JMD", symbol: "J$", name: "Jamaican Dollar", flag: "🇯🇲" },
+    { code: "JOD", symbol: "JD", name: "Jordanian Dinar", flag: "🇯🇴" },
+    { code: "JPY", symbol: "¥", name: "Japanese Yen", flag: "🇯🇵" },
+    { code: "KES", symbol: "KSh", name: "Kenyan Shilling", flag: "🇰🇪" },
+    { code: "KGS", symbol: "сом", name: "Kyrgyzstani Som", flag: "🇰🇬" },
+    { code: "KHR", symbol: "៛", name: "Cambodian Riel", flag: "🇰🇭" },
+    { code: "KMF", symbol: "CF", name: "Comorian Franc", flag: "🇰🇲" },
+    { code: "KRW", symbol: "₩", name: "South Korean Won", flag: "🇰🇷" },
+    { code: "KWD", symbol: "د.ك", name: "Kuwaiti Dinar", flag: "🇰🇼" },
+    { code: "KYD", symbol: "CI$", name: "Cayman Islands Dollar", flag: "🇰🇾" },
+    { code: "KZT", symbol: "₸", name: "Kazakhstani Tenge", flag: "🇰🇿" },
+    { code: "LAK", symbol: "₭", name: "Lao Kip", flag: "🇱🇦" },
+    { code: "LBP", symbol: "L£", name: "Lebanese Pound", flag: "🇱🇧" },
+    { code: "LKR", symbol: "Rs", name: "Sri Lankan Rupee", flag: "🇱🇰" },
+    { code: "LRD", symbol: "L$", name: "Liberian Dollar", flag: "🇱🇷" },
+    { code: "LSL", symbol: "L", name: "Lesotho Loti", flag: "🇱🇸" },
+    { code: "LYD", symbol: "LD", name: "Libyan Dinar", flag: "🇱🇾" },
+    { code: "MAD", symbol: "DH", name: "Moroccan Dirham", flag: "🇲🇦" },
+    { code: "MDL", symbol: "L", name: "Moldovan Leu", flag: "🇲🇩" },
+    { code: "MGA", symbol: "Ar", name: "Malagasy Ariary", flag: "🇲🇬" },
+    { code: "MKD", symbol: "den", name: "Macedonian Denar", flag: "🇲🇰" },
+    { code: "MMK", symbol: "K", name: "Myanmar Kyat", flag: "🇲🇲" },
+    { code: "MNT", symbol: "₮", name: "Mongolian Tugrik", flag: "🇲🇳" },
+    { code: "MOP", symbol: "MOP$", name: "Macanese Pataca", flag: "🇲🇴" },
+    { code: "MRU", symbol: "UM", name: "Mauritanian Ouguiya", flag: "🇲🇷" },
+    { code: "MUR", symbol: "Rs", name: "Mauritian Rupee", flag: "🇲🇺" },
+    { code: "MVR", symbol: "Rf", name: "Maldivian Rufiyaa", flag: "🇲🇻" },
+    { code: "MWK", symbol: "MK", name: "Malawian Kwacha", flag: "🇲🇼" },
+    { code: "MXN", symbol: "$", name: "Mexican Peso", flag: "🇲🇽" },
+    { code: "MYR", symbol: "RM", name: "Malaysian Ringgit", flag: "🇲🇾" },
+    { code: "MZN", symbol: "MT", name: "Mozambican Metical", flag: "🇲🇿" },
+    { code: "NAD", symbol: "N$", name: "Namibian Dollar", flag: "🇳🇦" },
+    { code: "NGN", symbol: "₦", name: "Nigerian Naira", flag: "🇳🇬" },
+    { code: "NIO", symbol: "C$", name: "Nicaraguan Córdoba", flag: "🇳🇮" },
+    { code: "NOK", symbol: "kr", name: "Norwegian Krone", flag: "🇳🇴" },
+    { code: "NPR", symbol: "Rs", name: "Nepalese Rupee", flag: "🇳🇵" },
+    { code: "NZD", symbol: "$", name: "New Zealand Dollar", flag: "🇳🇿" },
+    { code: "OMR", symbol: "﷼", name: "Omani Rial", flag: "🇴🇲" },
+    { code: "PAB", symbol: "B/.", name: "Panamanian Balboa", flag: "🇵🇦" },
+    { code: "PEN", symbol: "S/", name: "Peruvian Sol", flag: "🇵🇪" },
+    { code: "PGK", symbol: "K", name: "Papua New Guinean Kina", flag: "🇵🇬" },
+    { code: "PHP", symbol: "₱", name: "Philippine Peso", flag: "🇵🇭" },
+    { code: "PKR", symbol: "Rs", name: "Pakistani Rupee", flag: "🇵🇰" },
+    { code: "PLN", symbol: "zł", name: "Polish Zloty", flag: "🇵🇱" },
+    { code: "PYG", symbol: "₲", name: "Paraguayan Guaraní", flag: "🇵🇾" },
+    { code: "QAR", symbol: "﷼", name: "Qatari Riyal", flag: "🇶🇦" },
+    { code: "RON", symbol: "lei", name: "Romanian Leu", flag: "🇷🇴" },
+    { code: "RSD", symbol: "din.", name: "Serbian Dinar", flag: "🇷🇸" },
+    { code: "RUB", symbol: "₽", name: "Russian Ruble", flag: "🇷🇺" },
+    { code: "RWF", symbol: "FRw", name: "Rwandan Franc", flag: "🇷🇼" },
+    { code: "SAR", symbol: "﷼", name: "Saudi Riyal", flag: "🇸🇦" },
+    { code: "SBD", symbol: "SI$", name: "Solomon Islands Dollar", flag: "🇸🇧" },
+    { code: "SCR", symbol: "SR", name: "Seychellois Rupee", flag: "🇸🇨" },
+    { code: "SDG", symbol: "SDG", name: "Sudanese Pound", flag: "🇸🇩" },
+    { code: "SEK", symbol: "kr", name: "Swedish Krona", flag: "🇸🇪" },
+    { code: "SGD", symbol: "$", name: "Singapore Dollar", flag: "🇸🇬" },
+    { code: "SHP", symbol: "£", name: "Saint Helena Pound", flag: "🇸🇭" },
+    { code: "SLL", symbol: "Le", name: "Sierra Leonean Leone", flag: "🇸🇱" },
+    { code: "SOS", symbol: "Sh.So.", name: "Somali Shilling", flag: "🇸🇴" },
+    { code: "SRD", symbol: "Sr$", name: "Surinamese Dollar", flag: "🇸🇷" },
+    { code: "SSP", symbol: "SSP", name: "South Sudanese Pound", flag: "🇸🇸" },
+    { code: "STN", symbol: "Db", name: "São Tomé & Príncipe Dobra", flag: "🇸🇹" },
+    { code: "SYP", symbol: "£S", name: "Syrian Pound", flag: "🇸🇾" },
+    { code: "SZL", symbol: "E", name: "Swazi Lilangeni", flag: "🇸🇿" },
+    { code: "THB", symbol: "฿", name: "Thai Baht", flag: "🇹🇭" },
+    { code: "TJS", symbol: "SM", name: "Tajikistani Somoni", flag: "🇹🇯" },
+    { code: "TMT", symbol: "T", name: "Turkmenistan Manat", flag: "🇹🇲" },
+    { code: "TND", symbol: "DT", name: "Tunisian Dinar", flag: "🇹🇳" },
+    { code: "TOP", symbol: "T$", name: "Tongan Paʻanga", flag: "🇹🇴" },
+    { code: "TRY", symbol: "₺", name: "Turkish Lira", flag: "🇹🇷" },
+    { code: "TTD", symbol: "TT$", name: "Trinidad & Tobago Dollar", flag: "🇹🇹" },
+    { code: "TWD", symbol: "NT$", name: "New Taiwan Dollar", flag: "🇹🇼" },
+    { code: "TZS", symbol: "TSh", name: "Tanzanian Shilling", flag: "🇹🇿" },
+    { code: "UAH", symbol: "₴", name: "Ukrainian Hryvnia", flag: "🇺🇦" },
+    { code: "UGX", symbol: "USh", name: "Ugandan Shilling", flag: "🇺🇬" },
+    { code: "USD", symbol: "$", name: "US Dollar", flag: "🇺🇸" },
+    { code: "UYU", symbol: "$U", name: "Uruguayan Peso", flag: "🇺🇾" },
+    { code: "UZS", symbol: "so'm", name: "Uzbekistani Som", flag: "🇺🇿" },
+    { code: "VES", symbol: "Bs.", name: "Venezuelan Bolívar", flag: "🇻🇪" },
+    { code: "VND", symbol: "₫", name: "Vietnamese Dong", flag: "🇻🇳" },
+    { code: "VUV", symbol: "VT", name: "Vanuatu Vatu", flag: "🇻🇺" },
+    { code: "WST", symbol: "WS$", name: "Samoan Tala", flag: "🇼🇸" },
+    { code: "XAF", symbol: "FCFA", name: "Central African CFA Franc", flag: "🇨🇲" },
+    { code: "XCD", symbol: "EC$", name: "East Caribbean Dollar", flag: "🇦🇬" },
+    { code: "XOF", symbol: "CFA", name: "West African CFA Franc", flag: "🇸🇳" },
+    { code: "XPF", symbol: "CFP", name: "CFP Franc", flag: "🇵🇫" },
+    { code: "YER", symbol: "﷼", name: "Yemeni Rial", flag: "🇾🇪" },
+    { code: "ZAR", symbol: "R", name: "South African Rand", flag: "🇿🇦" },
+    { code: "ZMW", symbol: "ZK", name: "Zambian Kwacha", flag: "🇿🇲" },
+    { code: "ZWL", symbol: "Z$", name: "Zimbabwean Dollar", flag: "🇿🇼" },
+];
+
+// Complete combined currency dataset with major currencies prioritized
+export const CURRENCY_DATA: CurrencyInfo[] = [
+    ...MAJOR_CURRENCIES,
+    ...ALL_WORLD_CURRENCIES.filter(c => !MAJOR_CURRENCIES.some(m => m.code === c.code))
+];
+
+export interface CountryBankRule {
+    name: string;
+    code: string;
+    flag: string;
+    currency: string;
+    usesIban: boolean;
+    accountLabel: string;
+    routingLabel: string;
+    defaultRouting: string;
+}
+
+export const ALL_WORLD_COUNTRIES: CountryBankRule[] = [
+    { name: "United States", code: "US", flag: "🇺🇸", currency: "USD", usesIban: false, accountLabel: "Account Number", routingLabel: "ABA Routing Number (Fedwire / ACH)", defaultRouting: "021000021" },
+    { name: "United Kingdom", code: "GB", flag: "🇬🇧", currency: "GBP", usesIban: true, accountLabel: "IBAN", routingLabel: "Sort Code / BIC", defaultRouting: "20-00-00" },
+    { name: "Germany", code: "DE", flag: "🇩🇪", currency: "EUR", usesIban: true, accountLabel: "IBAN", routingLabel: "BIC / SWIFT (BLZ)", defaultRouting: "CATHDEFFXXX" },
+    { name: "France", code: "FR", flag: "🇫🇷", currency: "EUR", usesIban: true, accountLabel: "IBAN", routingLabel: "BIC / SWIFT", defaultRouting: "CATHFRPPXXX" },
+    { name: "Italy", code: "IT", flag: "🇮🇹", currency: "EUR", usesIban: true, accountLabel: "IBAN", routingLabel: "BIC / SWIFT", defaultRouting: "CATHITMMXXX" },
+    { name: "Spain", code: "ES", flag: "🇪🇸", currency: "EUR", usesIban: true, accountLabel: "IBAN", routingLabel: "BIC / SWIFT", defaultRouting: "CATHESMMXXX" },
+    { name: "Netherlands", code: "NL", flag: "🇳🇱", currency: "EUR", usesIban: true, accountLabel: "IBAN", routingLabel: "BIC / SWIFT", defaultRouting: "CATHNL2AXXX" },
+    { name: "Switzerland", code: "CH", flag: "🇨🇭", currency: "CHF", usesIban: true, accountLabel: "IBAN", routingLabel: "BIC / SWIFT", defaultRouting: "CATHCHZZXXX" },
+    { name: "Canada", code: "CA", flag: "🇨🇦", currency: "CAD", usesIban: false, accountLabel: "Account Number", routingLabel: "Transit / Institution Number", defaultRouting: "004-12345" },
+    { name: "Australia", code: "AU", flag: "🇦🇺", currency: "AUD", usesIban: false, accountLabel: "Account Number", routingLabel: "BSB Number", defaultRouting: "082-902" },
+    { name: "Japan", code: "JP", flag: "🇯🇵", currency: "JPY", usesIban: false, accountLabel: "Account Number", routingLabel: "Branch / Routing Code", defaultRouting: "0005-001" },
+    { name: "China", code: "CN", flag: "🇨🇳", currency: "CNY", usesIban: false, accountLabel: "Account Number", routingLabel: "CNAPS Branch Code", defaultRouting: "102100000018" },
+    { name: "Hong Kong", code: "HK", flag: "🇭🇰", currency: "HKD", usesIban: false, accountLabel: "Account Number", routingLabel: "Clearing / Branch Code", defaultRouting: "004-123" },
+    { name: "Singapore", code: "SG", flag: "🇸🇬", currency: "SGD", usesIban: false, accountLabel: "Account Number", routingLabel: "Bank & Branch Code", defaultRouting: "7171-001" },
+    { name: "Nigeria", code: "NG", flag: "🇳🇬", currency: "NGN", usesIban: false, accountLabel: "NUBAN Account Number", routingLabel: "CBN Sort / Bank Code", defaultRouting: "058152062" },
+    { name: "South Africa", code: "ZA", flag: "🇿🇦", currency: "ZAR", usesIban: false, accountLabel: "Account Number", routingLabel: "Branch Clearing Code", defaultRouting: "250655" },
+    { name: "United Arab Emirates", code: "AE", flag: "🇦🇪", currency: "AED", usesIban: true, accountLabel: "IBAN", routingLabel: "BIC / SWIFT", defaultRouting: "CATHAEADXXX" },
+    { name: "Saudi Arabia", code: "SA", flag: "🇸🇦", currency: "SAR", usesIban: true, accountLabel: "IBAN", routingLabel: "BIC / SWIFT", defaultRouting: "CATHSAJEXXX" },
+    { name: "India", code: "IN", flag: "🇮🇳", currency: "INR", usesIban: false, accountLabel: "Account Number", routingLabel: "IFSC Code", defaultRouting: "CBIN0280001" },
+    { name: "Brazil", code: "BR", flag: "🇧🇷", currency: "BRL", usesIban: true, accountLabel: "IBAN / Conta", routingLabel: "ISPB / BIC", defaultRouting: "CATHBRSPXXX" },
+    { name: "Mexico", code: "MX", flag: "🇲🇽", currency: "MXN", usesIban: false, accountLabel: "CLABE (18 digits)", routingLabel: "Bank / Branch Code", defaultRouting: "002" },
+    { name: "Belgium", code: "BE", flag: "🇧🇪", currency: "EUR", usesIban: true, accountLabel: "IBAN", routingLabel: "BIC / SWIFT", defaultRouting: "CATHBEBBXXX" },
+    { name: "Austria", code: "AT", flag: "🇦🇹", currency: "EUR", usesIban: true, accountLabel: "IBAN", routingLabel: "BIC / SWIFT", defaultRouting: "CATHATWWXXX" },
+    { name: "Ireland", code: "IE", flag: "🇮🇪", currency: "EUR", usesIban: true, accountLabel: "IBAN", routingLabel: "BIC / SWIFT", defaultRouting: "CATHIE2DXXX" },
+    { name: "Portugal", code: "PT", flag: "🇵🇹", currency: "EUR", usesIban: true, accountLabel: "IBAN", routingLabel: "BIC / SWIFT", defaultRouting: "CATHPTPLXXX" },
+    { name: "Greece", code: "GR", flag: "🇬🇷", currency: "EUR", usesIban: true, accountLabel: "IBAN", routingLabel: "BIC / SWIFT", defaultRouting: "CATHGRAAXXX" },
+    { name: "Poland", code: "PL", flag: "🇵🇱", currency: "PLN", usesIban: true, accountLabel: "IBAN", routingLabel: "BIC / SWIFT", defaultRouting: "CATHPLPWXXX" },
+    { name: "Sweden", code: "SE", flag: "🇸🇪", currency: "SEK", usesIban: true, accountLabel: "IBAN", routingLabel: "BIC / SWIFT", defaultRouting: "CATHSESSXXX" },
+    { name: "Norway", code: "NO", flag: "🇳🇴", currency: "NOK", usesIban: true, accountLabel: "IBAN", routingLabel: "BIC / SWIFT", defaultRouting: "CATHNO22XXX" },
+    { name: "Denmark", code: "DK", flag: "🇩🇰", currency: "DKK", usesIban: true, accountLabel: "IBAN", routingLabel: "BIC / SWIFT", defaultRouting: "CATHDKKKXXX" },
+    { name: "Finland", code: "FI", flag: "🇫🇮", currency: "EUR", usesIban: true, accountLabel: "IBAN", routingLabel: "BIC / SWIFT", defaultRouting: "CATHFIHHXXX" },
+    { name: "Czech Republic", code: "CZ", flag: "🇨🇿", currency: "CZK", usesIban: true, accountLabel: "IBAN", routingLabel: "BIC / SWIFT", defaultRouting: "CATHCZPPXXX" },
+    { name: "Hungary", code: "HU", flag: "🇭🇺", currency: "HUF", usesIban: true, accountLabel: "IBAN", routingLabel: "BIC / SWIFT", defaultRouting: "CATHHUBBXXX" },
+    { name: "Romania", code: "RO", flag: "🇷🇴", currency: "RON", usesIban: true, accountLabel: "IBAN", routingLabel: "BIC / SWIFT", defaultRouting: "CATHROBUXXX" },
+    { name: "Turkey", code: "TR", flag: "🇹🇷", currency: "TRY", usesIban: true, accountLabel: "IBAN", routingLabel: "BIC / SWIFT", defaultRouting: "CATHTRISXXX" },
+    { name: "Qatar", code: "QA", flag: "🇶🇦", currency: "QAR", usesIban: true, accountLabel: "IBAN", routingLabel: "BIC / SWIFT", defaultRouting: "CATHQAQAXXX" },
+    { name: "Kuwait", code: "KW", flag: "🇰🇼", currency: "KWD", usesIban: true, accountLabel: "IBAN", routingLabel: "BIC / SWIFT", defaultRouting: "CATHKWKWXXX" },
+    { name: "Bahrain", code: "BH", flag: "🇧🇭", currency: "BHD", usesIban: true, accountLabel: "IBAN", routingLabel: "BIC / SWIFT", defaultRouting: "CATHBHBMXXX" },
+    { name: "Oman", code: "OM", flag: "🇴🇲", currency: "OMR", usesIban: false, accountLabel: "Account Number", routingLabel: "BIC / SWIFT", defaultRouting: "CATHOMRUXXX" },
+    { name: "Egypt", code: "EG", flag: "🇪🇬", currency: "EGP", usesIban: true, accountLabel: "IBAN", routingLabel: "BIC / SWIFT", defaultRouting: "CATHEGCXXXX" },
+    { name: "Israel", code: "IL", flag: "🇮🇱", currency: "ILS", usesIban: true, accountLabel: "IBAN", routingLabel: "BIC / SWIFT", defaultRouting: "CATHILITXXX" },
+    { name: "New Zealand", code: "NZ", flag: "🇳🇿", currency: "NZD", usesIban: false, accountLabel: "Account Number (16-digit)", routingLabel: "Bank / Branch Code", defaultRouting: "01-0001" },
+    { name: "South Korea", code: "KR", flag: "🇰🇷", currency: "KRW", usesIban: false, accountLabel: "Account Number", routingLabel: "Bank Routing Code", defaultRouting: "088" },
+    { name: "Taiwan", code: "TW", flag: "🇹🇼", currency: "TWD", usesIban: false, accountLabel: "Account Number", routingLabel: "Bank / Branch Code", defaultRouting: "013-0012" },
+    { name: "Philippines", code: "PH", flag: "🇵🇭", currency: "PHP", usesIban: false, accountLabel: "Account Number", routingLabel: "BRSTN Routing Code", defaultRouting: "010530667" },
+    { name: "Indonesia", code: "ID", flag: "🇮🇩", currency: "IDR", usesIban: false, accountLabel: "Account Number", routingLabel: "Bank Clearing Code", defaultRouting: "0140012" },
+    { name: "Malaysia", code: "MY", flag: "🇲🇾", currency: "MYR", usesIban: false, accountLabel: "Account Number", routingLabel: "Routing / Branch Code", defaultRouting: "MBBEMYKL" },
+    { name: "Thailand", code: "TH", flag: "🇹🇭", currency: "THB", usesIban: false, accountLabel: "Account Number", routingLabel: "Bank / Branch Code", defaultRouting: "0014" },
+    { name: "Vietnam", code: "VN", flag: "🇻🇳", currency: "VND", usesIban: false, accountLabel: "Account Number", routingLabel: "CITAD Branch Code", defaultRouting: "01201001" },
+    { name: "Kenya", code: "KE", flag: "🇰🇪", currency: "KES", usesIban: false, accountLabel: "Account Number", routingLabel: "Bank Clearing Code", defaultRouting: "01100" },
+    { name: "Ghana", code: "GH", flag: "🇬🇭", currency: "GHS", usesIban: false, accountLabel: "Account Number", routingLabel: "Sort Code", defaultRouting: "040101" },
+    { name: "Argentina", code: "AR", flag: "🇦🇷", currency: "ARS", usesIban: false, accountLabel: "CBU (22-digit)", routingLabel: "Bank Code", defaultRouting: "011" },
+    { name: "Chile", code: "CL", flag: "🇨🇱", currency: "CLP", usesIban: false, accountLabel: "Account Number", routingLabel: "Bank Code", defaultRouting: "037" },
+    { name: "Colombia", code: "CO", flag: "🇨🇴", currency: "COP", usesIban: false, accountLabel: "Account Number", routingLabel: "Bank Code", defaultRouting: "007" },
+    { name: "Peru", code: "PE", flag: "🇵🇪", currency: "PEN", usesIban: false, accountLabel: "CCI Account Number", routingLabel: "Bank Code", defaultRouting: "002" },
+    { name: "Pakistan", code: "PK", flag: "🇵🇰", currency: "PKR", usesIban: true, accountLabel: "IBAN", routingLabel: "BIC / SWIFT", defaultRouting: "CATHPKKAXXX" },
+    { name: "Bangladesh", code: "BD", flag: "🇧🇩", currency: "BDT", usesIban: false, accountLabel: "Account Number", routingLabel: "Routing Number", defaultRouting: "115260123" },
+    { name: "Morocco", code: "MA", flag: "🇲🇦", currency: "MAD", usesIban: false, accountLabel: "RIB (24-digit)", routingLabel: "Bank Code", defaultRouting: "182" },
+    { name: "Jordan", code: "JO", flag: "🇯🇴", currency: "JOD", usesIban: true, accountLabel: "IBAN", routingLabel: "BIC / SWIFT", defaultRouting: "CATHJOAMXXX" },
+    { name: "Lebanon", code: "LB", flag: "🇱🇧", currency: "LBP", usesIban: true, accountLabel: "IBAN", routingLabel: "BIC / SWIFT", defaultRouting: "CATHLBBEXXX" },
+    { name: "Iceland", code: "IS", flag: "🇮🇸", currency: "ISK", usesIban: true, accountLabel: "IBAN", routingLabel: "BIC / SWIFT", defaultRouting: "CATHISREXXX" },
+    { name: "Cyprus", code: "CY", flag: "🇨🇾", currency: "EUR", usesIban: true, accountLabel: "IBAN", routingLabel: "BIC / SWIFT", defaultRouting: "CATHCY2NXXX" },
+    { name: "Malta", code: "MT", flag: "🇲🇹", currency: "EUR", usesIban: true, accountLabel: "IBAN", routingLabel: "BIC / SWIFT", defaultRouting: "CATHMTMMXXX" },
+    { name: "Luxembourg", code: "LU", flag: "🇱🇺", currency: "EUR", usesIban: true, accountLabel: "IBAN", routingLabel: "BIC / SWIFT", defaultRouting: "CATHLULLXXX" },
+    { name: "Croatia", code: "HR", flag: "🇭🇷", currency: "EUR", usesIban: true, accountLabel: "IBAN", routingLabel: "BIC / SWIFT", defaultRouting: "CATHHR2ZXXX" },
+    { name: "Bulgaria", code: "BG", flag: "🇧🇬", currency: "BGN", usesIban: true, accountLabel: "IBAN", routingLabel: "BIC / SWIFT", defaultRouting: "CATHBGSFXXX" },
+    { name: "Ukraine", code: "UA", flag: "🇺🇦", currency: "UAH", usesIban: true, accountLabel: "IBAN", routingLabel: "BIC / SWIFT", defaultRouting: "CATHUAKXXXX" },
+    { name: "Kazakhstan", code: "KZ", flag: "🇰🇿", currency: "KZT", usesIban: true, accountLabel: "IBAN", routingLabel: "BIC / SWIFT", defaultRouting: "CATHKZKZXXX" },
+];
+
+export function generateBankIdentifiersForCountry(countryName: string, existingUsers: any[] = []) {
+    const cleanCountry = (countryName || 'United States').trim().toLowerCase();
+    
+    // Find matching rule
+    const rule = ALL_WORLD_COUNTRIES.find(c => 
+        c.name.toLowerCase() === cleanCountry || 
+        c.code.toLowerCase() === cleanCountry
+    ) || {
+        name: countryName || "United States",
+        code: "US",
+        flag: "🌐",
+        currency: "USD",
+        usesIban: false,
+        accountLabel: "Account Number",
+        routingLabel: "Routing Number (ABA / Fedwire)",
+        defaultRouting: "021000021"
+    };
+
+    let accountNumber = '';
+    let routingNumber = rule.defaultRouting;
+    const isIban = Boolean(rule.usesIban);
+
+    if (rule.code === 'US' || rule.name.toLowerCase() === 'united states') {
+        let acc = `2890${Math.floor(100000 + Math.random() * 900000)}`;
+        while ((existingUsers || []).some(u => u.accountNumber === acc)) {
+            acc = `2890${Math.floor(100000 + Math.random() * 900000)}`;
+        }
+        accountNumber = acc;
+        routingNumber = '021000021';
+    } else if (rule.code === 'GB' || rule.name.toLowerCase() === 'united kingdom') {
+        const rand8 = Math.floor(10000000 + Math.random() * 90000000).toString();
+        accountNumber = `GB29CATH200000${rand8}`;
+        routingNumber = '20-00-00';
+    } else if (rule.code === 'DE' || rule.name.toLowerCase() === 'germany') {
+        const rand10 = Math.floor(1000000000 + Math.random() * 9000000000).toString();
+        accountNumber = `DE8937040044${rand10}`;
+        routingNumber = 'CATHDEFFXXX';
+    } else if (rule.code === 'FR' || rule.name.toLowerCase() === 'france') {
+        const rand11 = Math.floor(10000000000 + Math.random() * 90000000000).toString();
+        accountNumber = `FR763000600001${rand11.slice(0, 9)}89`;
+        routingNumber = 'CATHFRPPXXX';
+    } else if (rule.code === 'IT' || rule.name.toLowerCase() === 'italy') {
+        const rand12 = Math.floor(100000000000 + Math.random() * 900000000000).toString();
+        accountNumber = `IT60X05428111010${rand12}`;
+        routingNumber = 'CATHITMMXXX';
+    } else if (rule.code === 'ES' || rule.name.toLowerCase() === 'spain') {
+        const rand10 = Math.floor(1000000000 + Math.random() * 9000000000).toString();
+        accountNumber = `ES912100041845${rand10}`;
+        routingNumber = 'CATHESMMXXX';
+    } else if (rule.code === 'NL' || rule.name.toLowerCase() === 'netherlands') {
+        const rand10 = Math.floor(1000000000 + Math.random() * 9000000000).toString();
+        accountNumber = `NL91CATH0${rand10.slice(0, 9)}`;
+        routingNumber = 'CATHNL2AXXX';
+    } else if (rule.code === 'CH' || rule.name.toLowerCase() === 'switzerland') {
+        const rand12 = Math.floor(100000000000 + Math.random() * 900000000000).toString();
+        accountNumber = `CH9300762${rand12}`;
+        routingNumber = 'CATHCHZZXXX';
+    } else if (rule.code === 'CA' || rule.name.toLowerCase() === 'canada') {
+        const rand7 = Math.floor(1000000 + Math.random() * 9000000).toString();
+        accountNumber = `004${rand7}`;
+        routingNumber = '004-12345';
+    } else if (rule.code === 'AU' || rule.name.toLowerCase() === 'australia') {
+        const rand8 = Math.floor(10000000 + Math.random() * 90000000).toString();
+        accountNumber = `${rand8}`;
+        routingNumber = '082-902';
+    } else if (rule.code === 'NG' || rule.name.toLowerCase() === 'nigeria') {
+        const rand7 = Math.floor(1000000 + Math.random() * 9000000).toString();
+        accountNumber = `028${rand7}`;
+        routingNumber = '058152062';
+    } else if (rule.code === 'AE' || rule.name.toLowerCase().includes('emirates')) {
+        const rand16 = Math.floor(1000000000000000 + Math.random() * 9000000000000000).toString();
+        accountNumber = `AE070331${rand16}`;
+        routingNumber = 'CATHAEADXXX';
+    } else if (rule.code === 'SA' || rule.name.toLowerCase().includes('saudi')) {
+        const rand14 = Math.floor(10000000000000 + Math.random() * 90000000000000).toString();
+        accountNumber = `SA0380000000${rand14}`;
+        routingNumber = 'CATHSAJEXXX';
+    } else if (isIban) {
+        const prefix = rule.code || 'EU';
+        const check = Math.floor(10 + Math.random() * 89).toString();
+        const randNum = Math.floor(10000000000000 + Math.random() * 90000000000000).toString();
+        accountNumber = `${prefix}${check}CATH${randNum}`;
+        routingNumber = `CATH${prefix}XXX`;
+    } else {
+        let acc = `2890${Math.floor(100000 + Math.random() * 900000)}`;
+        while ((existingUsers || []).some(u => u.accountNumber === acc)) {
+            acc = `2890${Math.floor(100000 + Math.random() * 900000)}`;
+        }
+        accountNumber = acc;
+        routingNumber = rule.defaultRouting || '021000021';
+    }
+
+    return {
+        accountNumber,
+        routingNumber,
+        isIban,
+        accountLabel: isIban ? 'IBAN (International Bank Account Number)' : (rule.accountLabel || 'Account Number'),
+        routingLabel: isIban ? 'BIC / SWIFT Code' : (rule.routingLabel || 'Routing Number (ABA / Fedwire)'),
+        suggestedCurrency: rule.currency || 'USD'
+    };
+}
 
 // --- MOCK CARDS ---
 export const MOCK_CARDS_LAZARUS: Card[] = [

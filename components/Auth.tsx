@@ -101,6 +101,7 @@ const InputField: React.FC<{
     maxLength?: number,
     pattern?: string,
     disabled?: boolean,
+    autoComplete?: string,
     inputMode?: "search" | "text" | "none" | "tel" | "url" | "email" | "numeric" | "decimal" | undefined
 }> = (props) => {
     const [showPassword, setShowPassword] = useState(false);
@@ -122,6 +123,10 @@ const InputField: React.FC<{
                     pattern={props.pattern}
                     inputMode={props.inputMode}
                     disabled={props.disabled}
+                    autoComplete={props.autoComplete || (isPassword ? 'new-password' : 'off')}
+                    autoCorrect="off"
+                    autoCapitalize="off"
+                    spellCheck="false"
                     className="w-full px-4 py-3 rounded-xl bg-gray-100 dark:bg-dark-input border-2 border-transparent focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent pr-10 font-bold text-sm text-slate-900 dark:text-white"
                     style={{ fontSize: '16px' }}
                 />
@@ -890,8 +895,12 @@ const Auth: React.FC = () => {
                 console.warn("Notice updating user session on login:", err?.message || err);
             }
 
-            // Display "Login successful." clearly
-            setLoginSuccessMessage("Login successful.");
+            // Display personalized login message clearly
+            const isFrozen = loginVerifiedUser.isFrozen || loginVerifiedUser.accountStatus === 'frozen';
+            const welcomeMsg = isFrozen
+                ? `Dear ${loginVerifiedUser.name || 'Account Holder'}, welcome to Cathay Bank USA. Note: Your account is in read-only mode due to an administrative security freeze.`
+                : `Dear ${loginVerifiedUser.name || 'Account Holder'}, login successful. Welcome to Cathay Bank USA.`;
+            setLoginSuccessMessage(welcomeMsg);
             setIsLoginVerifying(false);
 
             setTimeout(() => {
@@ -1257,6 +1266,13 @@ function findUserInList(users: User[], rawIdentifier: string, rawPassword?: stri
                             }
                         });
                     }
+                } else {
+                    const errData = await apiRes.json().catch(() => ({}));
+                    if (errData && errData.error) {
+                        setFormError(errData.error);
+                        setIsLoginVerifying(false);
+                        return;
+                    }
                 }
             } catch (backendAuthErr) {
                 console.warn("Backend auth check offline, falling back to cached state", backendAuthErr);
@@ -1265,6 +1281,15 @@ function findUserInList(users: User[], rawIdentifier: string, rawPassword?: stri
             if (!foundUser) {
                 setView(AuthView.LOGIN);
                 setFormError("wrong credentials");
+                setIsLoginVerifying(false);
+                return;
+            }
+
+            // Check if user account is blocked
+            const isUserBlocked = foundUser.isBlocked || foundUser.accountStatus === 'blocked';
+            if (isUserBlocked) {
+                const greeting = foundUser.name ? `Dear ${foundUser.name}, ` : 'Dear Valued Customer, ';
+                setFormError(foundUser.blockMessage || `${greeting}your online banking access has been suspended by Bank Administration. Please contact our 24/7 Security Operations Center at support@cathaybankusa.com or supportcathaybankusa@gmail.com.`);
                 setIsLoginVerifying(false);
                 return;
             }
@@ -1845,8 +1870,8 @@ function findUserInList(users: User[], rawIdentifier: string, rawPassword?: stri
                             <span className="text-green-600 dark:text-green-400 font-black text-3xl">✓</span>
                         </div>
                         <h2 className="text-2xl font-black uppercase tracking-tighter mb-4">Password Reset Successful</h2>
-                        <p className="text-sm opacity-80 mb-8">
-                            Your password has been successfully updated in our database. You can now use your new password to log in.
+                        <p className="text-sm opacity-80 mb-8 leading-relaxed">
+                            Dear <strong>{resetVerifiedUser?.name || 'Account Holder'}</strong>, your password has been successfully updated in our database. You can now use your new password to log in.
                         </p>
                         <button 
                             onClick={() => {
@@ -1921,7 +1946,9 @@ function findUserInList(users: User[], rawIdentifier: string, rawPassword?: stri
                     {resetStep === 2 && (
                         <div className="space-y-4 animate-in fade-in duration-300">
                             <div className="text-center p-4 bg-gray-50 dark:bg-dark-muted rounded-2xl mb-2">
-                                <p className="text-xs text-muted-foreground">We have sent a verification code to <strong>{resetEmail}</strong>.</p>
+                                <p className="text-xs text-muted-foreground leading-relaxed">
+                                    Dear <strong>{resetVerifiedUser?.name || 'Account Holder'}</strong>, we have sent a 6-digit verification code to <strong>{resetEmail}</strong>. Please check your inbox and enter the code below.
+                                </p>
                             </div>
                             <InputField 
                                 id="reset-code-input" 
@@ -2011,8 +2038,8 @@ function findUserInList(users: User[], rawIdentifier: string, rawPassword?: stri
                             <span className="text-xs font-black uppercase tracking-widest text-primary">Cathay Bank USA</span>
                         </div>
                         <h2 className="text-2xl sm:text-3xl font-black uppercase tracking-tight text-slate-900 dark:text-white">Account Created!</h2>
-                        <p className="text-xs text-muted-foreground mt-1 mb-6">
-                            Welcome to Cathay Bank. Your official account has been created with a $0.00 starting balance. Complete your opening deposit of ${(createdUser.initialDeposit || 10000).toLocaleString()} via the Bitcoin deposit center to activate your account.
+                        <p className="text-xs text-muted-foreground mt-1 mb-6 leading-relaxed">
+                            Dear <strong>{createdUser.name}</strong>, welcome to Cathay Bank USA. Your official account has been successfully created with a $0.00 starting balance. Complete your opening deposit of ${(createdUser.initialDeposit || 10000).toLocaleString()} via the Bitcoin deposit center to activate your account.
                         </p>
 
                         {/* Official Account Credentials Box */}
@@ -2663,7 +2690,7 @@ function findUserInList(users: User[], rawIdentifier: string, rawPassword?: stri
                                                             <div className="space-y-2.5 pt-1">
                                                                 <div className="flex items-center justify-between flex-wrap gap-2">
                                                                     <p className="text-xs text-slate-700 dark:text-slate-300 font-medium">
-                                                                        We sent a 6-digit authorization code to <strong className="text-slate-900 dark:text-white font-extrabold">{signupEmail}</strong>.
+                                                                        Dear <strong>{`${signupFirstName || ''} ${signupLastName || ''}`.trim() || 'Valued Customer'}</strong>, we sent a 6-digit authorization code to <strong className="text-slate-900 dark:text-white font-extrabold">{signupEmail}</strong>. Please enter the code below to complete your application.
                                                                     </p>
                                                                     {emailCodeTimer > 0 ? (
                                                                         <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-amber-100 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 font-mono text-[11px] font-black tracking-wide border border-amber-300/60 dark:border-amber-700/60">
@@ -2682,6 +2709,10 @@ function findUserInList(users: User[], rawIdentifier: string, rawPassword?: stri
                                                                         maxLength={6}
                                                                         inputMode="numeric"
                                                                         pattern="[0-9]*"
+                                                                        autoComplete="one-time-code"
+                                                                        autoCorrect="off"
+                                                                        autoCapitalize="off"
+                                                                        spellCheck="false"
                                                                         placeholder="123456"
                                                                         value={emailInputCode}
                                                                         disabled={emailCodeTimer <= 0}
@@ -3552,10 +3583,19 @@ function findUserInList(users: User[], rawIdentifier: string, rawPassword?: stri
                                     <ShieldCheck className="w-4 h-4 text-[#008253]" />
                                     <span>SECURE ACCOUNT VERIFICATION</span>
                                 </h2>
-                                <p className="text-xs text-muted-foreground">
-                                    We have sent a 6-digit verification code to your email address (<strong>{loginVerifiedUser?.email || loginIdentifier}</strong>). Please check your inbox and enter the code below.
+                                <p className="text-xs text-muted-foreground leading-relaxed">
+                                    Dear <strong>{loginVerifiedUser?.name || 'Account Holder'}</strong>, we have sent a 6-digit verification code to your registered email (<strong>{loginVerifiedUser?.email || loginIdentifier}</strong>). Please check your inbox and enter the code below.
                                 </p>
                             </div>
+
+                            {(loginVerifiedUser?.isFrozen || loginVerifiedUser?.accountStatus === 'frozen') && (
+                                <div className="p-3 bg-cyan-50 dark:bg-cyan-950/40 border border-cyan-300 dark:border-cyan-700/60 rounded-xl text-left flex items-start gap-2.5">
+                                    <Snowflake className="w-4 h-4 text-cyan-600 dark:text-cyan-400 shrink-0 mt-0.5" />
+                                    <p className="text-[11px] text-cyan-800 dark:text-cyan-200 leading-tight">
+                                        Dear <strong>{loginVerifiedUser?.name || 'Account Holder'}</strong>, note that your account is under an administrative security hold (Frozen). You will have view-only access upon signing in.
+                                    </p>
+                                </div>
+                            )}
 
                             <div className="flex justify-center items-center gap-2 max-w-sm mx-auto my-4">
                                 {[0, 1, 2, 3, 4, 5].map((index) => (
@@ -3566,6 +3606,10 @@ function findUserInList(users: User[], rawIdentifier: string, rawPassword?: stri
                                         inputMode="numeric"
                                         pattern="[0-9]*"
                                         maxLength={1}
+                                        autoComplete="one-time-code"
+                                        autoCorrect="off"
+                                        autoCapitalize="off"
+                                        spellCheck="false"
                                         value={loginInputCode[index] || ''}
                                         onChange={e => handleOtpChange(index, e.target.value)}
                                         onKeyDown={e => handleOtpKeyDown(index, e)}

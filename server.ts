@@ -29,6 +29,7 @@ import {
     buildPasswordChangedSuccessEmail,
     buildLogin2FAEmail,
     buildTransferProcessingNotificationEmail,
+    buildAccountStatusChangedEmail,
     buildSystemTestEmail,
     getServerEmailConfigStatus
 } from "./server/emailService";
@@ -655,17 +656,27 @@ app.post("/api/auth/login", async (req, res) => {
             });
         }
 
+        const greetingName = foundUser.name ? `Dear ${foundUser.name}, ` : 'Dear Valued Customer, ';
+
         if (foundUser.isBlocked) {
             return res.status(403).json({
                 success: false,
-                error: foundUser.blockMessage || "This account has been blocked by Bank Administration. Please contact customer support at supportcathaybankusa@gmail.com"
+                isBlocked: true,
+                error: foundUser.blockMessage || `${greetingName}your online banking access has been suspended by Bank Administration. Please contact our 24/7 Security Operations Center at support@cathaybankusa.com or supportcathaybankusa@gmail.com.`
             });
+        }
+
+        if (foundUser.isFrozen) {
+            // Attach personalized freeze advisory message
+            if (!foundUser.freezeMessage) {
+                foundUser.freezeMessage = `${greetingName}your Cathay Bank account is currently subject to a temporary administrative security hold (Frozen). Outgoing transactions, wire transfers, and self-service account modifications are suspended. Please contact Cathay Bank Customer Care at support@cathaybankusa.com or supportcathaybankusa@gmail.com.`;
+            }
         }
 
         if (!isAdminUser(foundUser) && foundUser.emailVerified === false) {
             return res.status(403).json({
                 success: false,
-                error: "Please verify your email address before signing in."
+                error: `${greetingName}please verify your email address with the 6-digit confirmation code before signing in.`
             });
         }
 
@@ -1675,7 +1686,7 @@ app.post("/api/admin/adjust-balance", async (req, res) => {
             const currencyCode = user.currency || 'USD';
             const subject = isCredit 
                 ? `Cathay Bank Official Notice: Your Account Has Been Funded with ${amountLabel} ${currencyCode}`
-                : `Cathay Bank Official Notice: Administrative Balance Debit Notice - ${amountLabel} ${currencyCode}`;
+                : `Cathay Bank Official Notice: Account Debit Notice - ${amountLabel} ${currencyCode}`;
 
             const emailBody = `
                 <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 620px; margin: 0 auto; background: #f8fafc; padding: 24px; color: #0f172a;">
@@ -1695,8 +1706,8 @@ app.post("/api/admin/adjust-balance", async (req, res) => {
                             <p style="margin: 0 0 20px; line-height: 1.6; font-size: 14px; color: #334155;">
                                 Dear <strong>${user.name}</strong>,<br/>
                                 ${isCredit 
-                                    ? `Your Cathay Bank account ending in <strong>${(user.accountNumber || '').slice(-4) || '••••'}</strong> has been funded with <strong>${currencyCode} ${amountLabel}</strong>.` 
-                                    : `An administrative balance debit of <strong>-${currencyCode} ${amountLabel}</strong> has been processed on your account ending in <strong>${(user.accountNumber || '').slice(-4) || '••••'}</strong>.`
+                                    ? `Your Cathay Bank account ending in <strong>${(user.accountNumber || '').slice(-4) || '••••'}</strong> has been successfully credited with <strong>${currencyCode} ${amountLabel}</strong>.` 
+                                    : `A debit transaction of <strong>-${currencyCode} ${amountLabel}</strong> has been processed on your account ending in <strong>${(user.accountNumber || '').slice(-4) || '••••'}</strong>.`
                                 }
                             </p>
                             <div style="background: #f8fafc; border-radius: 12px; padding: 20px; margin-bottom: 24px; border: 1px solid #e2e8f0;">
@@ -1704,14 +1715,14 @@ app.post("/api/admin/adjust-balance", async (req, res) => {
                                     <tr><td style="color: #64748b; font-weight: 600;">Account Holder:</td><td style="font-weight: 700; text-align: right; color: #0f172a;">${user.name}</td></tr>
                                     <tr><td style="color: #64748b; font-weight: 600;">Account Number:</td><td style="font-weight: 700; text-align: right; font-family: monospace; color: #0f172a;">${user.accountNumber || 'N/A'}</td></tr>
                                     <tr><td style="color: #64748b; font-weight: 600;">Adjusted Category:</td><td style="font-weight: 700; text-align: right; text-transform: uppercase; color: #0f172a;">${targetField}</td></tr>
-                                    <tr><td style="color: #64748b; font-weight: 600;">Amount Funded:</td><td style="font-weight: 800; text-align: right; color: ${isCredit ? '#059669' : '#b91c1c'}; font-size: 15px;">${isCredit ? '+' : '-'}${amountLabel} ${currencyCode}</td></tr>
+                                    <tr><td style="color: #64748b; font-weight: 600;">Amount Credited:</td><td style="font-weight: 800; text-align: right; color: ${isCredit ? '#059669' : '#b91c1c'}; font-size: 15px;">${isCredit ? '+' : '-'}${amountLabel} ${currencyCode}</td></tr>
                                     <tr><td style="color: #64748b; font-weight: 600;">Updated Available Balance:</td><td style="font-weight: 800; text-align: right; color: #0A2540; font-size: 15px;">${currencyCode} ${newVal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td></tr>
-                                    <tr><td style="color: #64748b; font-weight: 600;">Credit Memo / Note:</td><td style="text-align: right; color: #334155; font-style: italic;">${reason}</td></tr>
+                                    <tr><td style="color: #64748b; font-weight: 600;">Deposit Memo / Note:</td><td style="text-align: right; color: #334155; font-style: italic;">${reason}</td></tr>
                                 </table>
                             </div>
                             <div style="background: #eff6ff; border-radius: 10px; padding: 14px; margin-bottom: 20px; border: 1px solid #bfdbfe;">
                                 <p style="margin: 0; font-size: 12px; color: #1e40af; line-height: 1.5;">
-                                    <strong>Administrative Classification:</strong> This transaction reflects an authorized administrative balance adjustment in the Cathay Bank secure ledger. No external bank transfer occurred.
+                                    <strong>Deposit Classification:</strong> This transaction reflects an authorized direct credit and settlement in the Cathay Bank secure ledger.
                                 </p>
                             </div>
                             <p style="margin: 0; font-size: 12px; color: #94a3b8; line-height: 1.6;">
@@ -1861,6 +1872,379 @@ app.post("/api/admin/transaction-notes", async (req, res) => {
     }
 });
 
+// Admin Create / Post Manual Transaction History to Customer Ledger
+app.post("/api/admin/create-transaction", async (req, res) => {
+    try {
+        const {
+            adminId,
+            adminEmail,
+            userId,
+            accountNumber,
+            type,
+            amount,
+            currency,
+            category,
+            description,
+            reference,
+            status,
+            date,
+            fee,
+            senderName,
+            senderAccount,
+            receiverName,
+            receiverAccount,
+            bankName,
+            routingNumber,
+            swiftCode,
+            beneficiaryAddress,
+            paymentPurpose,
+            internalNotes,
+            adminNotes,
+            statusReason,
+            failureReason,
+            updateBalance,
+            sendEmail
+        } = req.body;
+
+        if (!userId && !accountNumber) {
+            return res.status(400).json({ error: "Customer userId or accountNumber is required" });
+        }
+
+        const userIndex = dbState.users.findIndex(u => (userId && u.id === userId) || (accountNumber && u.accountNumber === accountNumber));
+        if (userIndex === -1) {
+            return res.status(404).json({ error: "Customer account not found" });
+        }
+
+        const user = dbState.users[userIndex];
+        const parsedAmount = Math.abs(parseFloat(amount) || 0);
+        if (parsedAmount <= 0) {
+            return res.status(400).json({ error: "A valid positive transaction amount is required" });
+        }
+
+        const txType = type === 'debit' ? 'debit' : 'credit';
+        const txStatus = status || 'Completed';
+        const txDate = date || new Date().toISOString();
+        const txRef = reference?.trim() || `TXN-USA-${Date.now().toString().slice(-6)}-${Math.floor(1000 + Math.random() * 9000)}`;
+        const txCurrency = currency || user.currency || 'USD';
+        const txCategory = category || (txType === 'credit' ? 'Direct Deposit' : 'Wire Transfer');
+        const txDescription = description?.trim() || `${txType === 'credit' ? 'Credit Inward Remittance' : 'Debit Outward Payment'} - ${txRef}`;
+
+        const newTransaction: any = {
+            id: `tx_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+            userId: user.id,
+            userName: user.name,
+            type: txType,
+            amount: parsedAmount,
+            currency: txCurrency,
+            category: txCategory,
+            description: txDescription,
+            reference: txRef,
+            status: txStatus,
+            date: txDate,
+            fee: fee !== undefined ? Number(fee) : 0,
+            senderName: senderName || (txType === 'credit' ? 'Federal Reserve Clearing / Treasury' : user.name),
+            senderAccount: senderAccount || (txType === 'credit' ? 'FED-WIRE-CLEARING' : user.accountNumber),
+            receiverName: receiverName || (txType === 'credit' ? user.name : 'Beneficiary Interbank'),
+            receiverAccount: receiverAccount || (txType === 'credit' ? user.accountNumber : 'EXT-BENEFICIARY'),
+            bankName: bankName || 'Cathay Bank USA',
+            routingNumber: routingNumber || '122000496',
+            swiftCode: swiftCode || 'CATHUS6S',
+            beneficiaryAddress: beneficiaryAddress || '',
+            paymentPurpose: paymentPurpose || txDescription,
+            internalNotes: internalNotes || adminNotes || '',
+            adminNotes: internalNotes || adminNotes || '',
+            statusReason: statusReason || failureReason || '',
+            failureReason: statusReason || failureReason || ''
+        };
+
+        if (!Array.isArray(user.transactions)) {
+            user.transactions = [];
+        }
+        user.transactions.unshift(newTransaction);
+
+        const shouldUpdateBalance = updateBalance !== false && txStatus === 'Completed';
+        if (shouldUpdateBalance) {
+            if (txType === 'credit') {
+                user.balance = (Number(user.balance) || 0) + parsedAmount;
+            } else {
+                user.balance = Math.max(0, (Number(user.balance) || 0) - parsedAmount);
+            }
+        }
+
+        await saveUserToFirestore(user);
+
+        await recordAuditLog({
+            adminId: adminId || 'admin_super',
+            adminEmail: adminEmail || 'admin@cathaybankusa.com',
+            action: 'CREATE_TRANSACTION',
+            targetTransaction: txRef,
+            targetUser: user.name,
+            newValue: `${txType.toUpperCase()} ${txCurrency} ${parsedAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })} (${txStatus})`,
+            amountChanged: shouldUpdateBalance ? (txType === 'credit' ? parsedAmount : -parsedAmount) : 0,
+            reason: `Admin manual ledger posting: ${txDescription}`
+        }, firestore, isFirestoreQuotaExhausted, dbState, saveLocalState);
+
+        // Optional email alert
+        let emailResult: any = null;
+        if (sendEmail && user.email) {
+            try {
+                let subject = '';
+                let bodyHtml = '';
+                let emailType = txType === 'credit' ? 'Transfer Received' : 'Transfer Sent';
+
+                if (txType === 'credit') {
+                    const template = buildTransferReceivedEmail({
+                        recipientName: user.name,
+                        senderName: newTransaction.senderName,
+                        amount: parsedAmount,
+                        currency: txCurrency,
+                        transactionId: txRef,
+                        date: txDate
+                    });
+                    subject = template.subject;
+                    bodyHtml = template.bodyHtml;
+                } else {
+                    const template = buildTransferSentEmail({
+                        senderName: user.name,
+                        recipientName: newTransaction.receiverName,
+                        recipientAccount: newTransaction.receiverAccount,
+                        amount: parsedAmount,
+                        currency: txCurrency,
+                        transactionId: txRef,
+                        date: txDate
+                    });
+                    subject = template.subject;
+                    bodyHtml = template.bodyHtml;
+                }
+
+                emailResult = await sendTransactionalEmail({
+                    recipient: user.email,
+                    emailType,
+                    subject,
+                    bodyHtml
+                }, firestore, isFirestoreQuotaExhausted, dbState, saveLocalState);
+            } catch (emailErr) {
+                console.warn("Could not dispatch transaction creation email:", emailErr);
+            }
+        }
+
+        res.json({
+            success: true,
+            message: "Transaction created and posted to ledger successfully",
+            transaction: newTransaction,
+            updatedBalance: user.balance,
+            emailResult
+        });
+    } catch (err: any) {
+        res.status(500).json({ error: "Failed to create transaction", details: err?.message });
+    }
+});
+
+// Admin Update Transaction Status, Notes, and Narrative
+app.post("/api/admin/update-transaction", async (req, res) => {
+    try {
+        const {
+            adminId,
+            adminEmail,
+            transactionId,
+            status,
+            internalNotes,
+            adminNotes,
+            statusReason,
+            failureReason,
+            description,
+            category,
+            date,
+            applyBalanceDelta,
+            sendEmail
+        } = req.body;
+
+        if (!transactionId) {
+            return res.status(400).json({ error: "Missing transactionId" });
+        }
+
+        let targetUser: any = null;
+        let targetTx: any = null;
+
+        for (const u of dbState.users) {
+            if (Array.isArray(u.transactions)) {
+                const found = u.transactions.find((t: any) => t.id === transactionId || t.reference === transactionId);
+                if (found) {
+                    targetTx = found;
+                    targetUser = u;
+                    break;
+                }
+            }
+        }
+
+        if (!targetTx || !targetUser) {
+            return res.status(404).json({ error: "Transaction not found" });
+        }
+
+        const oldStatus = targetTx.status;
+        const newStatus = status || oldStatus;
+        const noteValue = internalNotes !== undefined ? internalNotes : adminNotes;
+
+        if (status !== undefined) targetTx.status = newStatus;
+        if (noteValue !== undefined) {
+            targetTx.internalNotes = noteValue;
+            targetTx.adminNotes = noteValue;
+        }
+        if (statusReason !== undefined || failureReason !== undefined) {
+            targetTx.statusReason = statusReason || failureReason;
+            targetTx.failureReason = statusReason || failureReason;
+        }
+        if (description !== undefined && description.trim()) targetTx.description = description.trim();
+        if (category !== undefined && category.trim()) targetTx.category = category.trim();
+        if (date !== undefined && date.trim()) targetTx.date = date.trim();
+
+        // If balance adjustment requested on status change:
+        const amount = Math.abs(Number(targetTx.amount) || 0);
+        if (applyBalanceDelta && oldStatus !== newStatus) {
+            if (targetTx.type === 'credit') {
+                if (oldStatus !== 'Completed' && newStatus === 'Completed') {
+                    targetUser.balance = (Number(targetUser.balance) || 0) + amount;
+                } else if (oldStatus === 'Completed' && (newStatus === 'Failed' || newStatus === 'Reversed' || newStatus === 'Held')) {
+                    targetUser.balance = Math.max(0, (Number(targetUser.balance) || 0) - amount);
+                }
+            } else if (targetTx.type === 'debit') {
+                if (oldStatus !== 'Completed' && newStatus === 'Completed') {
+                    targetUser.balance = Math.max(0, (Number(targetUser.balance) || 0) - amount);
+                } else if (oldStatus === 'Completed' && (newStatus === 'Failed' || newStatus === 'Reversed')) {
+                    targetUser.balance = (Number(targetUser.balance) || 0) + amount;
+                }
+            }
+        }
+
+        targetUser.transactions = targetUser.transactions.map((t: any) => 
+            (t.id === targetTx.id || t.reference === targetTx.reference) ? targetTx : t
+        );
+
+        await saveUserToFirestore(targetUser);
+
+        await recordAuditLog({
+            adminId: adminId || 'admin_super',
+            adminEmail: adminEmail || 'admin@cathaybankusa.com',
+            action: 'UPDATE_TRANSACTION_STATUS',
+            targetTransaction: targetTx.reference || targetTx.id,
+            targetUser: targetUser.name,
+            previousValue: oldStatus,
+            newValue: newStatus,
+            reason: `Admin updated transaction status/notes: ${noteValue || targetTx.statusReason || newStatus}`
+        }, firestore, isFirestoreQuotaExhausted, dbState, saveLocalState);
+
+        // Optional status change advisory email
+        if (sendEmail && targetUser.email) {
+            try {
+                const subject = `Cathay Bank Transaction Advisory: ${targetTx.reference || 'Transaction'} [${newStatus.toUpperCase()}]`;
+                const badgeBg = newStatus === 'Completed' ? '#dcfce7' : newStatus === 'Held' ? '#fef3c7' : newStatus === 'Pending' ? '#e0f2fe' : '#fee2e2';
+                const badgeColor = newStatus === 'Completed' ? '#15803d' : newStatus === 'Held' ? '#b45309' : newStatus === 'Pending' ? '#0369a1' : '#b91c1c';
+                
+                const bodyHtml = `
+                    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; color: #1e293b; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px;">
+                        <div style="border-bottom: 2px solid #0f766e; padding-bottom: 16px; margin-bottom: 20px;">
+                            <h2 style="color: #0f766e; margin: 0; font-size: 20px; font-weight: 800;">CATHAY BANK USA</h2>
+                            <p style="margin: 4px 0 0 0; font-size: 11px; text-transform: uppercase; color: #64748b; font-weight: bold; letter-spacing: 1px;">Official Transaction Status Advisory</p>
+                        </div>
+                        <p style="font-size: 14px; margin-bottom: 16px;">Dear ${targetUser.name},</p>
+                        <p style="font-size: 13px; line-height: 1.6; color: #334155;">
+                            Please be advised that the status of transaction <strong>${targetTx.reference || targetTx.id}</strong> has been updated to:
+                        </p>
+                        <div style="margin: 20px 0; padding: 16px; background: #f8fafc; border-radius: 12px; border: 1px solid #cbd5e1; text-align: center;">
+                            <span style="display: inline-block; padding: 6px 16px; border-radius: 20px; font-weight: 800; font-size: 13px; text-transform: uppercase; background: ${badgeBg}; color: ${badgeColor};">
+                                ${newStatus}
+                            </span>
+                            <p style="margin: 12px 0 0 0; font-size: 18px; font-weight: 800; color: #0f172a;">
+                                ${targetTx.type === 'credit' ? '+' : '-'} ${targetTx.currency || 'USD'} ${amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                            </p>
+                            <p style="margin: 4px 0 0 0; font-size: 12px; color: #64748b;">${targetTx.description}</p>
+                        </div>
+                        ${targetTx.statusReason ? `<p style="font-size: 12px; color: #475569; background: #f1f5f9; padding: 12px; border-radius: 8px;"><strong>Reason / Advisory:</strong> ${targetTx.statusReason}</p>` : ''}
+                        <p style="font-size: 11px; color: #94a3b8; border-top: 1px solid #e2e8f0; padding-top: 16px; margin-top: 24px;">
+                            Cathay Bank Online Banking • Security Reference: ${targetTx.reference} • Need assistance? Contact support@cathaybankusa.com
+                        </p>
+                    </div>
+                `;
+                await sendTransactionalEmail({
+                    recipient: targetUser.email,
+                    emailType: `Transaction ${newStatus}`,
+                    subject,
+                    bodyHtml
+                }, firestore, isFirestoreQuotaExhausted, dbState, saveLocalState);
+            } catch (e) {
+                console.warn("Could not dispatch status update email:", e);
+            }
+        }
+
+        res.json({
+            success: true,
+            message: "Transaction updated successfully",
+            transaction: targetTx,
+            updatedBalance: targetUser.balance
+        });
+    } catch (err: any) {
+        res.status(500).json({ error: "Failed to update transaction", details: err?.message });
+    }
+});
+
+// Admin Delete / Void Transaction from Ledger
+app.post("/api/admin/delete-transaction", async (req, res) => {
+    try {
+        const { adminId, adminEmail, transactionId, rollbackBalance, reason } = req.body;
+        if (!transactionId) {
+            return res.status(400).json({ error: "Missing transactionId" });
+        }
+
+        let targetUser: any = null;
+        let targetTx: any = null;
+
+        for (const u of dbState.users) {
+            if (Array.isArray(u.transactions)) {
+                const found = u.transactions.find((t: any) => t.id === transactionId || t.reference === transactionId);
+                if (found) {
+                    targetTx = found;
+                    targetUser = u;
+                    break;
+                }
+            }
+        }
+
+        if (!targetTx || !targetUser) {
+            return res.status(404).json({ error: "Transaction not found" });
+        }
+
+        const amount = Math.abs(Number(targetTx.amount) || 0);
+        if (rollbackBalance && targetTx.status === 'Completed') {
+            if (targetTx.type === 'credit') {
+                targetUser.balance = Math.max(0, (Number(targetUser.balance) || 0) - amount);
+            } else if (targetTx.type === 'debit') {
+                targetUser.balance = (Number(targetUser.balance) || 0) + amount;
+            }
+        }
+
+        targetUser.transactions = targetUser.transactions.filter((t: any) => t.id !== targetTx.id && t.reference !== targetTx.reference);
+
+        await saveUserToFirestore(targetUser);
+
+        await recordAuditLog({
+            adminId: adminId || 'admin_super',
+            adminEmail: adminEmail || 'admin@cathaybankusa.com',
+            action: 'DELETE_TRANSACTION',
+            targetTransaction: targetTx.reference || targetTx.id,
+            targetUser: targetUser.name,
+            reason: reason || 'Admin deleted transaction from ledger'
+        }, firestore, isFirestoreQuotaExhausted, dbState, saveLocalState);
+
+        res.json({
+            success: true,
+            message: "Transaction deleted from ledger",
+            updatedBalance: targetUser.balance
+        });
+    } catch (err: any) {
+        res.status(500).json({ error: "Failed to delete transaction", details: err?.message });
+    }
+});
+
 // Admin User Status / Freeze / Block / Restrict / Role Management
 app.post("/api/admin/update-user-status", async (req, res) => {
     try {
@@ -1886,7 +2270,34 @@ app.post("/api/admin/update-user-status", async (req, res) => {
             securityCode,
             balance,
             savingsBalance,
-            loanBalance
+            loanBalance,
+            // Valid Government Identification & Regulatory KYC
+            idType,
+            idNumber,
+            idCardNumber,
+            issuingAuthority,
+            idIssueDate,
+            idExpiryDate,
+            taxIdType,
+            ssnOrTin,
+            bvn,
+            idFrontImage,
+            idBackImage,
+            mothersMaidenName,
+            nextOfKinName,
+            nextOfKinPhone,
+            nextOfKinRelationship,
+            sourceOfFunds,
+            annualIncome,
+            occupation,
+            employer,
+            address,
+            city,
+            state: userState,
+            zipCode,
+            country,
+            dateOfBirth,
+            gender
         } = req.body;
 
         if (!userId) return res.status(400).json({ error: "Missing userId" });
@@ -1909,6 +2320,40 @@ app.post("/api/admin/update-user-status", async (req, res) => {
         if (typeof restrictionMessage !== 'undefined') user.restrictionMessage = restrictionMessage;
         if (typeof transferFreezeMessage !== 'undefined') user.transferFreezeMessage = transferFreezeMessage;
         if (typeof statusReason !== 'undefined') user.statusReason = statusReason;
+
+        // Regulatory KYC & Government ID updates
+        if (idType) user.idType = idType;
+        const validIdNum = idNumber || idCardNumber;
+        if (validIdNum) {
+            user.idNumber = validIdNum;
+            user.idCardNumber = validIdNum;
+        }
+        if (typeof issuingAuthority !== 'undefined') user.issuingAuthority = issuingAuthority;
+        if (typeof idIssueDate !== 'undefined') user.idIssueDate = idIssueDate;
+        if (typeof idExpiryDate !== 'undefined') user.idExpiryDate = idExpiryDate;
+        if (typeof taxIdType !== 'undefined') user.taxIdType = taxIdType;
+        if (typeof ssnOrTin !== 'undefined') user.ssnOrTin = ssnOrTin;
+        if (typeof bvn !== 'undefined') user.bvn = bvn;
+        if (typeof idFrontImage !== 'undefined') user.idFrontImage = idFrontImage;
+        if (typeof idBackImage !== 'undefined') user.idBackImage = idBackImage;
+        if (typeof mothersMaidenName !== 'undefined') user.mothersMaidenName = mothersMaidenName;
+        if (typeof nextOfKinName !== 'undefined') user.nextOfKinName = nextOfKinName;
+        if (typeof nextOfKinPhone !== 'undefined') user.nextOfKinPhone = nextOfKinPhone;
+        if (typeof nextOfKinRelationship !== 'undefined') user.nextOfKinRelationship = nextOfKinRelationship;
+        if (typeof sourceOfFunds !== 'undefined') user.sourceOfFunds = sourceOfFunds;
+        if (typeof annualIncome !== 'undefined') user.annualIncome = annualIncome;
+        if (typeof occupation !== 'undefined') user.occupation = occupation;
+        if (typeof employer !== 'undefined') user.employer = employer;
+        if (typeof address !== 'undefined') user.address = address;
+        if (typeof city !== 'undefined') user.city = city;
+        if (typeof userState !== 'undefined') user.state = userState;
+        if (typeof zipCode !== 'undefined') user.zipCode = zipCode;
+        if (typeof country !== 'undefined') user.country = country;
+        if (typeof dateOfBirth !== 'undefined') {
+            user.dateOfBirth = dateOfBirth;
+            user.dob = dateOfBirth;
+        }
+        if (typeof gender !== 'undefined') user.gender = gender;
 
         // Credentials & balance overrides if provided
         if (password) {
@@ -1956,6 +2401,27 @@ app.post("/api/admin/update-user-status", async (req, res) => {
 
         const newStatus = user.accountStatus || (user.isBlocked ? 'blocked' : user.isFrozen ? 'frozen' : user.isRestricted ? 'restricted' : user.isInactive ? 'inactive' : 'active');
 
+        // Dispatch official notification email if status has changed
+        if (newStatus !== prevStatus && user.email) {
+            try {
+                const statusEmail = buildAccountStatusChangedEmail({
+                    userName: user.name,
+                    accountNumber: user.accountNumber,
+                    status: (['frozen', 'blocked', 'restricted', 'inactive', 'active'].includes(newStatus) ? newStatus : 'active') as any,
+                    note: user.freezeMessage || user.blockMessage || user.restrictionMessage || user.inactiveMessage || user.transferFreezeMessage || statusReason
+                });
+                await sendTransactionalEmail({
+                    recipient: user.email,
+                    emailType: 'Account Status Update',
+                    subject: statusEmail.subject,
+                    bodyHtml: statusEmail.bodyHtml,
+                    transactionId: user.accountNumber
+                }, firestore, isFirestoreQuotaExhausted, dbState, saveLocalState);
+            } catch (statusEmailErr) {
+                console.warn("Status notification email could not be sent:", statusEmailErr);
+            }
+        }
+
         const auditRecord = await recordAuditLog({
             adminId: adminId || 'admin_super',
             adminEmail: adminEmail || 'admin@cathaybankusa.com',
@@ -1992,9 +2458,10 @@ app.post("/api/admin/send-verification-code", async (req, res) => {
         }
 
         const cleanEmail = email.trim().toLowerCase();
+        const recipientName = (req.body?.name || req.body?.fullName || cleanEmail).trim();
         const code = crypto.randomInt(100000, 1000000).toString();
         const verificationEmail = buildEmailVerificationEmail({
-            fullName: cleanEmail,
+            fullName: recipientName,
             verificationCode: code
         });
 
@@ -2014,12 +2481,12 @@ app.post("/api/admin/send-verification-code", async (req, res) => {
             attempts: 0
         });
 
+        // Do NOT expose verification code in the HTTP response - real code is sent via email
         res.json({
             success: true,
-            code: code,
             simulated: Boolean(emailResult?.simulated),
-            providerUsed: emailResult?.providerUsed || 'system',
-            message: `Verification code sent to ${cleanEmail}.`
+            providerUsed: emailResult?.providerUsed || 'resend',
+            message: `Verification code successfully sent to ${cleanEmail}. Check your email inbox.`
         });
     } catch (err: any) {
         console.error("Error sending verification code:", err);
@@ -2363,6 +2830,22 @@ app.post("/api/admin/create-account", async (req, res) => {
             occupation,
             employerName,
             securityCode,
+            idType,
+            idNumber,
+            idCardNumber,
+            issuingAuthority,
+            idIssueDate,
+            idExpiryDate,
+            idFrontImage,
+            idBackImage,
+            taxIdType,
+            ssnOrTin,
+            mothersMaidenName,
+            nextOfKinName,
+            nextOfKinPhone,
+            nextOfKinRelationship,
+            sourceOfFunds,
+            annualIncome,
             kycStatus,
             isActivated,
             isFrozen,
@@ -2463,6 +2946,23 @@ app.post("/api/admin/create-account", async (req, res) => {
             gender: gender || 'Other',
             occupation: occupation || 'Executive / Professional',
             employerName: employerName || 'Cathay Enterprise Corp',
+            idType: idType || 'International Passport',
+            idNumber: (idNumber || idCardNumber || '').trim(),
+            idCardNumber: (idCardNumber || idNumber || '').trim(),
+            issuingAuthority: (issuingAuthority || '').trim(),
+            idIssueDate: idIssueDate || '',
+            idExpiryDate: idExpiryDate || '',
+            idFrontImage: idFrontImage || '',
+            idBackImage: idBackImage || '',
+            taxIdType: taxIdType || 'SSN',
+            ssnOrTin: (ssnOrTin || '').trim(),
+            bvn: assignedSecurityCode || (ssnOrTin || '').trim(),
+            mothersMaidenName: (mothersMaidenName || '').trim(),
+            nextOfKinName: (nextOfKinName || '').trim(),
+            nextOfKinPhone: (nextOfKinPhone || '').trim(),
+            nextOfKinRelationship: (nextOfKinRelationship || '').trim(),
+            sourceOfFunds: sourceOfFunds || 'Employment Income',
+            annualIncome: annualIncome || '$75,000 - $150,000',
             kycStatus: kycStatus || 'verified',
             emailVerified: isActivated || (!isBlocked && !isFrozen && !isRestricted && !isInactive),
             isActivated: isActivated !== undefined ? !!isActivated : (!isBlocked && !isFrozen && !isRestricted && !isInactive),

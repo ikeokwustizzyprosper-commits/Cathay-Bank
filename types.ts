@@ -120,6 +120,12 @@ export interface User {
   issuingAuthority?: string;
   idIssueDate?: string;
   idExpiryDate?: string;
+  idFrontImage?: string;
+  idBackImage?: string;
+  mothersMaidenName?: string;
+  nextOfKinName?: string;
+  nextOfKinPhone?: string;
+  nextOfKinRelationship?: string;
   taxIdType?: string;
   ssnOrTin?: string;
   employmentStatus?: string;
@@ -196,6 +202,8 @@ export interface Transaction {
   beneficiaryAddress?: string;
   paymentPurpose?: string;
   internalNotes?: string;
+  adminNotes?: string;
+  statusReason?: string;
   reversedAt?: string;
   reversalReason?: string;
 }

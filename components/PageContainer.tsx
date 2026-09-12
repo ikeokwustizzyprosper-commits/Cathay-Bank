@@ -6,17 +6,19 @@ import { Page, Card as CardType, User, Transaction, Message } from '../types';
 import { 
     ArrowLeftIcon, ProcessingLoaderIcon, AlertCircleIcon, LandmarkIcon, PhoneIcon, MailIcon, 
     RefreshCwIcon, formatCurrency, COUNTRIES_WITH_BANKS, CURRENCY_DATA, 
+    ALL_WORLD_COUNTRIES, generateBankIdentifiersForCountry, MAJOR_CURRENCIES, ALL_WORLD_CURRENCIES, CountryBankRule,
     MOCK_CARDS_JOSEPH, MOCK_CARDS_JALIHA, MOCK_CARDS_PARADISE,
     BILLER_CATEGORIES, convertToGbp, EXCHANGE_RATES, SettingsIcon, UserIcon, 
     CreditCardIcon, SignOutIcon, MenuIcon, ImageIcon, PaperclipIcon, MessageCircleIcon, ShieldIcon,
     EyeIcon, EyeOffIcon, BellIcon, LockIcon
 } from '../constants';
-import { Gauge, CheckCircle2Icon, CheckCircle2, UserCheck, AlertTriangle, AlertCircle, MessageSquare, Monitor, SlidersHorizontal as SlidersIcon, Clock, ArrowLeft, History, RotateCcw, Camera, Check, Upload, Sparkles, Link as LinkIcon, RefreshCw, X, FileText, Send, Mail, CheckCircle, XCircle, Key, HelpCircle, Copy, ExternalLink, Eye, ShieldCheck, Volume2, VolumeX, ShieldAlert, Snowflake, Ban, Trash2, UserPlus, ShieldX, PauseCircle } from 'lucide-react';
+import { Gauge, CheckCircle2Icon, CheckCircle2, UserCheck, AlertTriangle, AlertCircle, MessageSquare, Monitor, SlidersHorizontal as SlidersIcon, Clock, ArrowLeft, History, RotateCcw, Camera, Check, Upload, Sparkles, Link as LinkIcon, RefreshCw, X, FileText, Send, Mail, CheckCircle, XCircle, Key, HelpCircle, Copy, ExternalLink, Eye, ShieldCheck, Volume2, VolumeX, ShieldAlert, Snowflake, Ban, Trash2, UserPlus, ShieldX, PauseCircle, Plus, Download, Printer, Filter, Search, ArrowUpRight, ArrowDownLeft, FileSpreadsheet, CheckCheck } from 'lucide-react';
 import Card from './Card';
 import Modal from './Modal';
 import { generateReceiptPDF } from '../utils/pdfGenerator';
 import TransactionHistory from './TransactionHistory';
 import { playNotificationChime } from '../utils/sound';
+import { getStatesAndZipForCountry } from '../countryStateData';
 
 const fetchWithTimeout = async (resource: string, options: RequestInit = {}, timeout = 30000) => {
     const controller = new AbortController();
@@ -205,12 +207,158 @@ const AdminDashboard = () => {
     const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
 
     const [showAdminSetupGuide, setShowAdminSetupGuide] = useState(false);
+
+    // Bank Transaction History & Advanced Filter State
+    const [txSearchQuery, setTxSearchQuery] = useState('');
+    const [txStatusFilter, setTxStatusFilter] = useState<'all' | 'Completed' | 'Pending' | 'Held' | 'Failed' | 'Reversed'>('all');
+    const [txTypeFilter, setTxTypeFilter] = useState<'all' | 'credit' | 'debit'>('all');
+    const [txCategoryFilter, setTxCategoryFilter] = useState<string>('all');
+    const [txUserFilter, setTxUserFilter] = useState<string>('all');
+    const [txSortBy, setTxSortBy] = useState<'newest' | 'oldest' | 'amount_high' | 'amount_low'>('newest');
+
+    // Create / Post Manual Transaction Form State
+    const [isCreateTxModalOpen, setIsCreateTxModalOpen] = useState(false);
+    const [createTxUserId, setCreateTxUserId] = useState('');
+    const [createTxType, setCreateTxType] = useState<'credit' | 'debit'>('credit');
+    const [createTxAmount, setCreateTxAmount] = useState('');
+    const [createTxCurrency, setCreateTxCurrency] = useState('USD');
+    const [createTxCategory, setCreateTxCategory] = useState('Wire Transfer');
+    const [createTxDescription, setCreateTxDescription] = useState('');
+    const [createTxReference, setCreateTxReference] = useState('');
+    const [createTxStatus, setCreateTxStatus] = useState<'Completed' | 'Pending' | 'Held' | 'Failed'>('Completed');
+    const [createTxDate, setCreateTxDate] = useState(() => new Date().toISOString().slice(0, 16));
+    const [createTxFee, setCreateTxFee] = useState('0');
+    const [createTxSenderName, setCreateTxSenderName] = useState('Federal Reserve Fedwire Clearing');
+    const [createTxSenderAccount, setCreateTxSenderAccount] = useState('FED-WIRE-CLEARING');
+    const [createTxReceiverName, setCreateTxReceiverName] = useState('');
+    const [createTxReceiverAccount, setCreateTxReceiverAccount] = useState('');
+    const [createTxBankName, setCreateTxBankName] = useState('Cathay Bank USA');
+    const [createTxRoutingNumber, setCreateTxRoutingNumber] = useState('122000496');
+    const [createTxSwiftCode, setCreateTxSwiftCode] = useState('CATHUS6S');
+    const [createTxInternalNotes, setCreateTxInternalNotes] = useState('');
+    const [createTxStatusReason, setCreateTxStatusReason] = useState('');
+    const [createTxUpdateBalance, setCreateTxUpdateBalance] = useState(true);
+    const [createTxSendEmail, setCreateTxSendEmail] = useState(true);
+    const [isSubmittingTx, setIsSubmittingTx] = useState(false);
+
+    // Edit Transaction Modal State
+    const [editingTxModal, setEditingTxModal] = useState<any | null>(null);
+    const [editTxStatus, setEditTxStatus] = useState<'Completed' | 'Pending' | 'Held' | 'Failed' | 'Reversed'>('Completed');
+    const [editTxInternalNotes, setEditTxInternalNotes] = useState('');
+    const [editTxStatusReason, setEditTxStatusReason] = useState('');
+    const [editTxDescription, setEditTxDescription] = useState('');
+    const [editTxCategory, setEditTxCategory] = useState('');
+    const [editTxDate, setEditTxDate] = useState('');
+    const [editTxApplyBalanceDelta, setEditTxApplyBalanceDelta] = useState(false);
+    const [editTxSendEmail, setEditTxSendEmail] = useState(false);
+    const [isUpdatingTx, setIsUpdatingTx] = useState(false);
+
+    // Official Bank Voucher / Receipt Modal State
+    const [viewingVoucherTx, setViewingVoucherTx] = useState<any | null>(null);
+
+    // Delete Transaction Modal State
+    const [deletingTxModal, setDeletingTxModal] = useState<any | null>(null);
+    const [deleteTxRollbackBalance, setDeleteTxRollbackBalance] = useState(true);
+    const [deleteTxReason, setDeleteTxReason] = useState('');
+    const [isDeletingTx, setIsDeletingTx] = useState(false);
     
     const customers = (state.users || []).filter(u => u && u.role === 'customer');
     const allTransactions = useMemo(() => {
-        return (state.users || []).flatMap(u => (u?.transactions || []).map(tx => ({ ...tx, userId: u?.id, userName: u?.name })))
-                          .sort((a,b) => new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime());
+        return (state.users || []).flatMap(u => (u?.transactions || []).map(tx => ({ 
+            ...tx, 
+            userId: u?.id, 
+            userName: u?.name,
+            userEmail: u?.email,
+            userAccountNumber: u?.accountNumber,
+            userBalance: u?.balance,
+            userCurrency: u?.currency || 'USD'
+        }))).sort((a,b) => new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime());
     }, [state.users]);
+
+    const availableCategories = useMemo(() => {
+        const set = new Set<string>();
+        allTransactions.forEach(tx => {
+            if (tx.category) set.add(tx.category);
+        });
+        return Array.from(set).sort();
+    }, [allTransactions]);
+
+    const filteredTransactions = useMemo(() => {
+        return allTransactions.filter(tx => {
+            if (!tx) return false;
+            if (txStatusFilter !== 'all' && tx.status !== txStatusFilter) return false;
+            if (txTypeFilter !== 'all' && tx.type !== txTypeFilter) return false;
+            if (txCategoryFilter !== 'all' && tx.category !== txCategoryFilter) return false;
+            if (txUserFilter !== 'all' && tx.userId !== txUserFilter) return false;
+            if (txSearchQuery.trim()) {
+                const q = txSearchQuery.toLowerCase().trim();
+                const match = 
+                    (tx.id || '').toLowerCase().includes(q) ||
+                    (tx.reference || '').toLowerCase().includes(q) ||
+                    (tx.userName || '').toLowerCase().includes(q) ||
+                    (tx.userAccountNumber || '').toLowerCase().includes(q) ||
+                    (tx.description || '').toLowerCase().includes(q) ||
+                    (tx.senderName || '').toLowerCase().includes(q) ||
+                    (tx.receiverName || '').toLowerCase().includes(q) ||
+                    (tx.category || '').toLowerCase().includes(q) ||
+                    (tx.bankName || '').toLowerCase().includes(q) ||
+                    (tx.internalNotes || '').toLowerCase().includes(q) ||
+                    (tx.adminNotes || '').toLowerCase().includes(q) ||
+                    (tx.statusReason || '').toLowerCase().includes(q);
+                if (!match) return false;
+            }
+            return true;
+        }).sort((a, b) => {
+            if (txSortBy === 'oldest') {
+                return new Date(a.date || 0).getTime() - new Date(b.date || 0).getTime();
+            }
+            if (txSortBy === 'amount_high') {
+                return (Number(b.amount) || 0) - (Number(a.amount) || 0);
+            }
+            if (txSortBy === 'amount_low') {
+                return (Number(a.amount) || 0) - (Number(b.amount) || 0);
+            }
+            return new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime();
+        });
+    }, [allTransactions, txStatusFilter, txTypeFilter, txCategoryFilter, txUserFilter, txSearchQuery, txSortBy]);
+
+    const txStats = useMemo(() => {
+        let totalVolume = 0;
+        let completedVolume = 0;
+        let completedCount = 0;
+        let pendingCount = 0;
+        let heldCount = 0;
+        let failedCount = 0;
+        let reversedCount = 0;
+
+        allTransactions.forEach(tx => {
+            const amt = Number(tx.amount) || 0;
+            totalVolume += amt;
+            if (tx.status === 'Completed') {
+                completedVolume += amt;
+                completedCount++;
+            } else if (tx.status === 'Pending') {
+                pendingCount++;
+            } else if (tx.status === 'Held') {
+                heldCount++;
+            } else if (tx.status === 'Failed') {
+                failedCount++;
+            } else if (tx.status === 'Reversed') {
+                reversedCount++;
+            }
+        });
+
+        return {
+            totalVolume,
+            totalCount: allTransactions.length,
+            completedVolume,
+            completedCount,
+            pendingCount,
+            heldCount,
+            failedCount,
+            reversedCount
+        };
+    }, [allTransactions]);
 
     const newUsersToday = useMemo(() => {
         const count = (state.users || []).filter(u => u?.id?.startsWith('usr_new_') || u?.id === 'usr_joakim_blom').length;
@@ -266,6 +414,36 @@ const AdminDashboard = () => {
 
     // Full Account Details Inspector Modal state
     const [inspectingUser, setInspectingUser] = useState<User | null>(null);
+    const [isEditingGovernmentId, setIsEditingGovernmentId] = useState(false);
+    const [govIdSaving, setGovIdSaving] = useState(false);
+    const [govIdSuccess, setGovIdSuccess] = useState<string | null>(null);
+    const [govIdForm, setGovIdForm] = useState({
+        idType: 'International Passport',
+        idNumber: '',
+        issuingAuthority: '',
+        idIssueDate: '',
+        idExpiryDate: '',
+        ssnOrTin: '',
+        taxIdType: 'SSN',
+        bvn: '',
+        idFrontImage: '',
+        idBackImage: '',
+        mothersMaidenName: '',
+        nextOfKinName: '',
+        nextOfKinPhone: '',
+        nextOfKinRelationship: 'Spouse',
+        sourceOfFunds: 'Employment Salary / Wages',
+        annualIncome: '$100,000 - $250,000',
+        occupation: '',
+        employer: '',
+        address: '',
+        city: '',
+        state: '',
+        zipCode: '',
+        country: 'United States',
+        dateOfBirth: '',
+        gender: 'Male'
+    });
 
     const handleDeleteSingleUser = async (userToDelete: User) => {
         if (!window.confirm(`Are you sure you want to permanently delete customer account for ${userToDelete.name} (${userToDelete.email})? This action cannot be undone.`)) {
@@ -792,7 +970,7 @@ const AdminDashboard = () => {
         }
     };
 
-    const handleTransactionStatus = (userId: string, transactionId: string, status: Transaction['status']) => {
+    const handleTransactionStatus = async (userId: string, transactionId: string, status: Transaction['status']) => {
         if (status === 'Reversed') {
             const tx = allTransactions.find(t => t.id === transactionId);
             if (tx) {
@@ -801,8 +979,265 @@ const AdminDashboard = () => {
             }
         }
         dispatch({ type: 'UPDATE_TRANSACTION_STATUS', payload: { userId, transactionId, status } });
+        try {
+            await fetchWithTimeout('/api/admin/update-transaction', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    adminId: state.currentUser?.id || 'admin_super',
+                    adminEmail: state.currentUser?.email || 'admin@cathaybankusa.com',
+                    transactionId,
+                    status
+                })
+            });
+        } catch (e) {
+            console.warn("Could not persist status change to server:", e);
+        }
         syncWithServer();
         alert(`${t('transaction')} ${status}`);
+    };
+
+    const handleOpenCreateTxModal = (preselectedUserId?: string) => {
+        const targetId = preselectedUserId || (customers.length > 0 ? customers[0].id : state.users[0]?.id || '');
+        const targetUser = state.users.find(u => u.id === targetId);
+        setCreateTxUserId(targetId);
+        setCreateTxType('credit');
+        setCreateTxAmount('');
+        setCreateTxCurrency(targetUser?.currency || 'USD');
+        setCreateTxCategory('Wire Transfer');
+        setCreateTxDescription('Fedwire Inward Remittance');
+        setCreateTxReference(`TXN-USA-${Date.now().toString().slice(-6)}-${Math.floor(1000 + Math.random() * 9000)}`);
+        setCreateTxStatus('Completed');
+        setCreateTxDate(new Date().toISOString().slice(0, 16));
+        setCreateTxFee('0');
+        setCreateTxSenderName('Federal Reserve Clearing / Treasury');
+        setCreateTxSenderAccount('FED-WIRE-CLEARING');
+        setCreateTxReceiverName(targetUser?.name || 'Account Holder');
+        setCreateTxReceiverAccount(targetUser?.accountNumber || '');
+        setCreateTxBankName('Cathay Bank USA');
+        setCreateTxRoutingNumber('122000496');
+        setCreateTxSwiftCode('CATHUS6S');
+        setCreateTxInternalNotes('');
+        setCreateTxStatusReason('Direct institutional book transfer processed');
+        setCreateTxUpdateBalance(true);
+        setCreateTxSendEmail(true);
+        setIsCreateTxModalOpen(true);
+    };
+
+    const handlePostNewTransaction = async () => {
+        if (!createTxUserId) {
+            alert("Please select a target customer account.");
+            return;
+        }
+        const numAmount = parseFloat(createTxAmount);
+        if (!numAmount || numAmount <= 0) {
+            alert("Please enter a valid positive transaction amount.");
+            return;
+        }
+
+        setIsSubmittingTx(true);
+        try {
+            const res = await fetchWithTimeout('/api/admin/create-transaction', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    adminId: state.currentUser?.id || 'admin_super',
+                    adminEmail: state.currentUser?.email || 'admin@cathaybankusa.com',
+                    userId: createTxUserId,
+                    type: createTxType,
+                    amount: numAmount,
+                    currency: createTxCurrency,
+                    category: createTxCategory,
+                    description: createTxDescription,
+                    reference: createTxReference,
+                    status: createTxStatus,
+                    date: createTxDate ? new Date(createTxDate).toISOString() : new Date().toISOString(),
+                    fee: parseFloat(createTxFee) || 0,
+                    senderName: createTxSenderName,
+                    senderAccount: createTxSenderAccount,
+                    receiverName: createTxReceiverName,
+                    receiverAccount: createTxReceiverAccount,
+                    bankName: createTxBankName,
+                    routingNumber: createTxRoutingNumber,
+                    swiftCode: createTxSwiftCode,
+                    internalNotes: createTxInternalNotes,
+                    statusReason: createTxStatusReason,
+                    updateBalance: createTxUpdateBalance,
+                    sendEmail: createTxSendEmail
+                })
+            });
+            const data = await res.json();
+            if (data.success) {
+                dispatch({
+                    type: 'ADD_TRANSACTION_TO_USER',
+                    payload: { userId: createTxUserId, transaction: data.transaction }
+                });
+                if (data.updatedBalance !== undefined) {
+                    dispatch({
+                        type: 'UPDATE_USER_BALANCE',
+                        payload: { userId: createTxUserId, newBalance: data.updatedBalance }
+                    });
+                }
+                await syncWithServer();
+                setIsCreateTxModalOpen(false);
+                alert("Transaction successfully posted to customer ledger!");
+            } else {
+                alert(data.error || "Failed to create transaction.");
+            }
+        } catch (err: any) {
+            alert("Network error creating transaction: " + err?.message);
+        } finally {
+            setIsSubmittingTx(false);
+        }
+    };
+
+    const handleOpenEditTxModal = (tx: any) => {
+        setEditingTxModal(tx);
+        setEditTxStatus(tx.status || 'Completed');
+        setEditTxInternalNotes(tx.internalNotes || tx.adminNotes || '');
+        setEditTxStatusReason(tx.statusReason || tx.failureReason || '');
+        setEditTxDescription(tx.description || '');
+        setEditTxCategory(tx.category || '');
+        setEditTxDate(tx.date ? new Date(tx.date).toISOString().slice(0, 16) : '');
+        setEditTxApplyBalanceDelta(false);
+        setEditTxSendEmail(false);
+    };
+
+    const handleSaveTransactionEdit = async () => {
+        if (!editingTxModal) return;
+        setIsUpdatingTx(true);
+        try {
+            const res = await fetchWithTimeout('/api/admin/update-transaction', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    adminId: state.currentUser?.id || 'admin_super',
+                    adminEmail: state.currentUser?.email || 'admin@cathaybankusa.com',
+                    transactionId: editingTxModal.id,
+                    status: editTxStatus,
+                    internalNotes: editTxInternalNotes,
+                    statusReason: editTxStatusReason,
+                    description: editTxDescription,
+                    category: editTxCategory,
+                    date: editTxDate ? new Date(editTxDate).toISOString() : undefined,
+                    applyBalanceDelta: editTxApplyBalanceDelta,
+                    sendEmail: editTxSendEmail
+                })
+            });
+            const data = await res.json();
+            if (data.success) {
+                dispatch({
+                    type: 'UPDATE_TRANSACTION_STATUS',
+                    payload: {
+                        userId: editingTxModal.userId,
+                        transactionId: editingTxModal.id,
+                        status: editTxStatus
+                    }
+                });
+                if (data.updatedBalance !== undefined) {
+                    dispatch({
+                        type: 'UPDATE_USER_BALANCE',
+                        payload: { userId: editingTxModal.userId, newBalance: data.updatedBalance }
+                    });
+                }
+                await syncWithServer();
+                setEditingTxModal(null);
+                alert("Transaction record, status, and internal notes saved successfully.");
+            } else {
+                alert(data.error || "Failed to update transaction.");
+            }
+        } catch (err: any) {
+            alert("Network error updating transaction: " + err?.message);
+        } finally {
+            setIsUpdatingTx(false);
+        }
+    };
+
+    const handleDeleteTransactionExecute = async () => {
+        if (!deletingTxModal) return;
+        setIsDeletingTx(true);
+        try {
+            const res = await fetchWithTimeout('/api/admin/delete-transaction', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    adminId: state.currentUser?.id || 'admin_super',
+                    adminEmail: state.currentUser?.email || 'admin@cathaybankusa.com',
+                    transactionId: deletingTxModal.id,
+                    rollbackBalance: deleteTxRollbackBalance,
+                    reason: deleteTxReason || 'Administrative void'
+                })
+            });
+            const data = await res.json();
+            if (data.success) {
+                if (data.updatedBalance !== undefined) {
+                    dispatch({
+                        type: 'UPDATE_USER_BALANCE',
+                        payload: { userId: deletingTxModal.userId, newBalance: data.updatedBalance }
+                    });
+                }
+                await syncWithServer();
+                setDeletingTxModal(null);
+                alert("Transaction voided and deleted from ledger.");
+            } else {
+                alert(data.error || "Failed to delete transaction.");
+            }
+        } catch (err: any) {
+            alert("Network error deleting transaction: " + err?.message);
+        } finally {
+            setIsDeletingTx(false);
+        }
+    };
+
+    const handleExportTransactionsCSV = () => {
+        if (filteredTransactions.length === 0) {
+            alert("No transactions match your current filters to export.");
+            return;
+        }
+        const headers = [
+            "Transaction ID",
+            "Reference Code",
+            "Date & Time",
+            "Customer Name",
+            "Account Number",
+            "Direction (Type)",
+            "Category",
+            "Amount",
+            "Currency",
+            "Status",
+            "Description / Narrative",
+            "Sender",
+            "Receiver",
+            "Bank",
+            "Staff Internal Notes",
+            "Status Reason / Advisory"
+        ];
+        const rows = filteredTransactions.map(tx => [
+            `"${tx.id || ''}"`,
+            `"${tx.reference || ''}"`,
+            `"${tx.date ? new Date(tx.date).toISOString() : ''}"`,
+            `"${(tx.userName || '').replace(/"/g, '""')}"`,
+            `"${tx.userAccountNumber || tx.senderAccount || ''}"`,
+            `"${tx.type || ''}"`,
+            `"${tx.category || ''}"`,
+            tx.amount || 0,
+            `"${tx.currency || 'USD'}"`,
+            `"${tx.status || ''}"`,
+            `"${(tx.description || '').replace(/"/g, '""')}"`,
+            `"${(tx.senderName || '').replace(/"/g, '""')}"`,
+            `"${(tx.receiverName || '').replace(/"/g, '""')}"`,
+            `"${(tx.bankName || '').replace(/"/g, '""')}"`,
+            `"${(tx.internalNotes || tx.adminNotes || '').replace(/"/g, '""')}"`,
+            `"${(tx.statusReason || tx.failureReason || '').replace(/"/g, '""')}"`
+        ]);
+        const csvContent = "data:text/csv;charset=utf-8," + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", `cathay_bank_ledger_${new Date().toISOString().slice(0, 10)}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
     };
 
     return (
@@ -1352,11 +1787,20 @@ const AdminDashboard = () => {
                                             </button>
                                             <button 
                                                 onClick={() => {
+                                                    setTxUserFilter(u.id);
                                                     setTab('transactions');
                                                 }}
                                                 className="px-3 py-2 bg-slate-100 dark:bg-dark-muted hover:bg-primary/10 hover:text-primary rounded-xl text-[9px] font-black uppercase tracking-wider transition"
                                             >
                                                 Ledger
+                                            </button>
+                                            <button 
+                                                onClick={() => {
+                                                    handleOpenCreateTxModal(u.id);
+                                                }}
+                                                className="px-3 py-2 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 hover:bg-emerald-100 rounded-xl text-[9px] font-black uppercase tracking-wider transition border border-emerald-500/20"
+                                            >
+                                                + Post Tx
                                             </button>
                                         </div>
                                     </div>
@@ -2175,125 +2619,474 @@ const AdminDashboard = () => {
             )}
 
             {(tab === 'transactions' || tab === 'transfers') && (
-                <div className="space-y-3">
-                    <h3 className="text-[10px] font-black uppercase tracking-widest opacity-50 px-2">{t('transactionLedger')}</h3>
-                    {allTransactions.length === 0 ? (
-                        <div className="py-20 text-center opacity-20 flex flex-col items-center gap-3">
-                            <LandmarkIcon className="w-10 h-10" />
-                            <p className="text-[10px] font-black uppercase tracking-widest">{t('noTransactionsFound')}</p>
-                        </div>
-                    ) : 
-                    allTransactions.map((tx, idx) => {
-                        const isExpanded = expandedTxId === tx.id;
-                        return (
-                            <div key={`${tx.id}-${tx.userId || tx.senderAccount || ''}-${idx}`} className="bg-white dark:bg-dark-card p-5 rounded-2xl border border-border dark:border-dark-border shadow-sm hover:border-primary/20 transition duration-300">
-                                <div className="flex justify-between items-start cursor-pointer" onClick={() => setExpandedTxId(isExpanded ? null : tx.id)}>
+                <div className="space-y-6 animate-in fade-in duration-300">
+                    {/* Bank Ledger Master Banner */}
+                    <div className="bg-gradient-to-r from-slate-950 via-blue-950 to-slate-900 p-6 rounded-3xl text-white shadow-xl border border-blue-500/20">
+                        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                            <div>
+                                <div className="flex items-center gap-2.5">
+                                    <div className="p-2 bg-blue-500/20 rounded-xl border border-blue-400/30">
+                                        <RefreshCwIcon className="w-5 h-5 text-blue-400" />
+                                    </div>
                                     <div>
-                                        <p className="text-[10px] font-black uppercase text-gray-900 dark:text-white tracking-tight">{tx.userName}</p>
-                                        <p className="text-xs font-bold text-muted-foreground leading-snug">{tx.description}</p>
-                                        <p className="text-[9px] font-black uppercase opacity-40 mt-1">{tx.reference} • {tx.status}</p>
+                                        <h2 className="text-lg font-black uppercase tracking-wider">Cathay Bank USA — Transaction & Clearing Ledger</h2>
+                                        <p className="text-xs text-blue-200/70 mt-0.5">
+                                            Institutional clearinghouse, manual ledger postings, regulatory AML/KYC holds, and immutable transaction notes.
+                                        </p>
                                     </div>
-                                    <div className="text-right">
-                                        <span className={`text-sm font-black block ${tx.type === 'credit' ? 'text-green-500' : 'text-red-500'}`}>{formatCurrency(tx.amount)}</span>
-                                        <span className="text-[8px] text-primary hover:underline font-black uppercase tracking-widest mt-1.5 block">
-                                            {isExpanded ? 'Collapse ▲' : 'Details ▼'}
-                                        </span>
-                                    </div>
-                                </div>
-                                
-                                {isExpanded && (
-                                    <div className="mt-4 pt-4 border-t border-border/50 dark:border-dark-border/50 grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2.5 text-[11px] text-gray-500 dark:text-gray-400 animate-in fade-in duration-200">
-                                        <div className="flex justify-between border-b border-gray-100 dark:border-dark-border/40 pb-1">
-                                            <span className="font-bold opacity-60">Date & Time:</span>
-                                            <span className="font-extrabold text-gray-800 dark:text-white">{new Date(tx.date).toLocaleString()}</span>
-                                        </div>
-                                        <div className="flex justify-between border-b border-gray-100 dark:border-dark-border/40 pb-1">
-                                            <span className="font-bold opacity-60">Reference Code:</span>
-                                            <span className="font-extrabold text-gray-800 dark:text-white">{tx.reference}</span>
-                                        </div>
-                                        <div className="flex justify-between border-b border-gray-100 dark:border-dark-border/40 pb-1">
-                                            <span className="font-bold opacity-60">Category:</span>
-                                            <span className="font-extrabold text-gray-800 dark:text-white">{tx.category}</span>
-                                        </div>
-                                        <div className="flex justify-between border-b border-gray-100 dark:border-dark-border/40 pb-1">
-                                            <span className="font-bold opacity-60">Sender Name:</span>
-                                            <span className="font-extrabold text-gray-800 dark:text-white">{tx.senderName || tx.userName}</span>
-                                        </div>
-                                        {tx.senderAccount && (
-                                            <div className="flex justify-between border-b border-gray-100 dark:border-dark-border/40 pb-1">
-                                                <span className="font-bold opacity-60">Sender Account:</span>
-                                                <span className="font-extrabold text-gray-800 dark:text-white">{tx.senderAccount}</span>
-                                            </div>
-                                        )}
-                                        <div className="flex justify-between border-b border-gray-100 dark:border-dark-border/40 pb-1">
-                                            <span className="font-bold opacity-60">Receiver Name:</span>
-                                            <span className="font-extrabold text-gray-800 dark:text-white">{tx.receiverName || 'N/A'}</span>
-                                        </div>
-                                        {tx.receiverAccount && (
-                                            <div className="flex justify-between border-b border-gray-100 dark:border-dark-border/40 pb-1">
-                                                <span className="font-bold opacity-60">Receiver Account:</span>
-                                                <span className="font-extrabold text-gray-800 dark:text-white">{tx.receiverAccount}</span>
-                                            </div>
-                                        )}
-                                        {tx.bankName && (
-                                            <div className="flex justify-between border-b border-gray-100 dark:border-dark-border/40 pb-1">
-                                                <span className="font-bold opacity-60">Institution:</span>
-                                                <span className="font-extrabold text-gray-800 dark:text-white">{tx.bankName}</span>
-                                            </div>
-                                        )}
-                                        {tx.country && (
-                                            <div className="flex justify-between border-b border-gray-100 dark:border-dark-border/40 pb-1">
-                                                <span className="font-bold opacity-60">Country:</span>
-                                                <span className="font-extrabold text-gray-800 dark:text-white">{tx.country}</span>
-                                            </div>
-                                        )}
-                                        {tx.fee !== undefined && (
-                                            <div className="flex justify-between border-b border-gray-100 dark:border-dark-border/40 pb-1">
-                                                <span className="font-bold opacity-60">Transfer Fee:</span>
-                                                <span className="font-extrabold text-gray-800 dark:text-white">{formatCurrency(tx.fee)}</span>
-                                            </div>
-                                        )}
-                                        <div className="flex justify-between border-b border-gray-100 dark:border-dark-border/40 pb-1">
-                                            <span className="font-bold opacity-60">Status:</span>
-                                            <span className={`font-black uppercase ${
-                                                tx.status === 'Completed' ? 'text-green-500' :
-                                                tx.status === 'Pending' ? 'text-yellow-500' :
-                                                'text-red-500'
-                                            }`}>{tx.status}</span>
-                                        </div>
-                                    </div>
-                                )}
-
-                                <div className="grid grid-cols-3 gap-2 mt-4">
-                                    <button onClick={() => handleTransactionStatus(tx.userId!, tx.id, 'Completed')} className="py-2 bg-green-600/10 hover:bg-green-600/20 text-green-600 text-[8px] font-black uppercase rounded-lg border border-green-600/20 transition">{t('complete')}</button>
-                                    <button onClick={() => handleTransactionStatus(tx.userId!, tx.id, 'Held')} className="py-2 bg-yellow-600/10 hover:bg-yellow-600/20 text-yellow-600 text-[8px] font-black uppercase rounded-lg border border-yellow-600/20 transition">{t('hold')}</button>
-                                    <button onClick={() => handleTransactionStatus(tx.userId!, tx.id, 'Failed')} className="py-2 bg-red-600/10 hover:bg-red-600/20 text-red-600 text-[8px] font-black uppercase rounded-lg border border-red-600/20 transition">{t('fail')}</button>
-                                </div>
-                                <div className="grid grid-cols-2 gap-2 mt-2">
-                                    <button 
-                                        onClick={() => {
-                                            setReversalModalTx(tx);
-                                            setReversalReason('');
-                                        }} 
-                                        className="py-2 bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-400 text-[8px] font-black uppercase rounded-lg border border-amber-500/30 flex items-center justify-center gap-1 transition"
-                                    >
-                                        <RotateCcw className="w-3 h-3" />
-                                        Reverse & Recall
-                                    </button>
-                                    <button 
-                                        onClick={() => {
-                                            setNoteModalTx(tx);
-                                            setInternalNoteText(tx.internalNotes || '');
-                                        }} 
-                                        className="py-2 bg-slate-100 hover:bg-slate-200 dark:bg-dark-muted text-slate-700 dark:text-slate-300 text-[8px] font-black uppercase rounded-lg border border-border dark:border-dark-border flex items-center justify-center gap-1 transition"
-                                    >
-                                        <FileText className="w-3 h-3" />
-                                        {tx.internalNotes ? 'Edit Notes 📝' : 'Internal Note'}
-                                    </button>
                                 </div>
                             </div>
-                        );
-                    })}
+                            <div className="flex items-center gap-2 flex-wrap">
+                                <button 
+                                    onClick={() => handleOpenCreateTxModal()}
+                                    className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-black uppercase tracking-wider transition shadow-lg shadow-emerald-900/30 flex items-center gap-2"
+                                >
+                                    <Plus className="w-4 h-4" />
+                                    + Post New Transaction
+                                </button>
+                                <button 
+                                    onClick={handleExportTransactionsCSV}
+                                    className="px-3.5 py-2.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-black uppercase tracking-wider transition border border-white/15 flex items-center gap-1.5"
+                                >
+                                    <Download className="w-4 h-4" />
+                                    Export CSV
+                                </button>
+                                <button 
+                                    onClick={() => syncWithServer()}
+                                    className="px-3.5 py-2.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-black uppercase tracking-wider transition border border-white/15 flex items-center gap-1.5"
+                                >
+                                    <RefreshCw className="w-3.5 h-3.5" />
+                                    Sync
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Real-Time Settlement Statistics */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                        <div className="bg-white dark:bg-dark-card p-4 rounded-2xl border border-border dark:border-dark-border shadow-sm">
+                            <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Total Ledger Volume</p>
+                            <p className="text-base font-black text-foreground mt-1">{formatCurrency(txStats.totalVolume)}</p>
+                            <p className="text-[9px] font-bold text-muted-foreground mt-0.5">{txStats.totalCount} Recorded Entries</p>
+                        </div>
+                        <div className="bg-white dark:bg-dark-card p-4 rounded-2xl border border-border dark:border-dark-border shadow-sm">
+                            <p className="text-[10px] font-black uppercase tracking-widest text-emerald-600">Settled (Completed)</p>
+                            <p className="text-base font-black text-emerald-600 mt-1">{formatCurrency(txStats.completedVolume)}</p>
+                            <p className="text-[9px] font-bold text-muted-foreground mt-0.5">{txStats.completedCount} Cleared Transactions</p>
+                        </div>
+                        <div className="bg-white dark:bg-dark-card p-4 rounded-2xl border border-border dark:border-dark-border shadow-sm">
+                            <p className="text-[10px] font-black uppercase tracking-widest text-amber-500">In Clearing (Pending)</p>
+                            <p className="text-base font-black text-amber-500 mt-1">{txStats.pendingCount}</p>
+                            <p className="text-[9px] font-bold text-muted-foreground mt-0.5">Awaiting Bank Verification</p>
+                        </div>
+                        <div className="bg-white dark:bg-dark-card p-4 rounded-2xl border border-border dark:border-dark-border shadow-sm">
+                            <p className="text-[10px] font-black uppercase tracking-widest text-purple-500">Regulatory Holds</p>
+                            <p className="text-base font-black text-purple-500 mt-1">{txStats.heldCount}</p>
+                            <p className="text-[9px] font-bold text-muted-foreground mt-0.5">AML / Compliance Audit</p>
+                        </div>
+                        <div className="bg-white dark:bg-dark-card p-4 rounded-2xl border border-border dark:border-dark-border shadow-sm">
+                            <p className="text-[10px] font-black uppercase tracking-widest text-rose-500">Failed / Reversed</p>
+                            <p className="text-base font-black text-rose-500 mt-1">{txStats.failedCount + txStats.reversedCount}</p>
+                            <p className="text-[9px] font-bold text-muted-foreground mt-0.5">{txStats.failedCount} Failed • {txStats.reversedCount} Recalled</p>
+                        </div>
+                    </div>
+
+                    {/* Filter, Search & Query Controls */}
+                    <div className="bg-white dark:bg-dark-card p-5 rounded-2xl border border-border dark:border-dark-border shadow-sm space-y-4">
+                        <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
+                            {/* Search Input */}
+                            <div className="relative flex-1">
+                                <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+                                <input 
+                                    type="text"
+                                    value={txSearchQuery}
+                                    onChange={e => setTxSearchQuery(e.target.value)}
+                                    placeholder="Search by Tx ID, Ref code, customer name, account #, note, counterparty..."
+                                    autoComplete="off"
+                                    className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-dark-muted rounded-xl text-xs font-semibold text-foreground placeholder:text-muted-foreground/60 border border-border dark:border-dark-border focus:outline-none focus:ring-2 focus:ring-primary"
+                                />
+                                {txSearchQuery && (
+                                    <button 
+                                        onClick={() => setTxSearchQuery('')}
+                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground hover:text-foreground"
+                                    >
+                                        ✕
+                                    </button>
+                                )}
+                            </div>
+
+                            {/* Status Quick Pills */}
+                            <div className="flex items-center gap-1 overflow-x-auto pb-1 md:pb-0 scrollbar-none">
+                                {[
+                                    { id: 'all', label: 'All Status' },
+                                    { id: 'Completed', label: 'Completed' },
+                                    { id: 'Pending', label: 'Pending' },
+                                    { id: 'Held', label: 'Held' },
+                                    { id: 'Failed', label: 'Failed' },
+                                    { id: 'Reversed', label: 'Reversed' }
+                                ].map(st => (
+                                    <button 
+                                        key={st.id}
+                                        onClick={() => setTxStatusFilter(st.id as any)}
+                                        className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition shrink-0 ${
+                                            txStatusFilter === st.id 
+                                                ? 'bg-primary text-primary-foreground shadow-sm' 
+                                                : 'bg-slate-100 dark:bg-dark-muted text-muted-foreground hover:text-foreground'
+                                        }`}
+                                    >
+                                        {st.label}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Secondary Filter Row */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 pt-3 border-t border-border/40 dark:border-dark-border/40">
+                            {/* Direction Type Filter */}
+                            <div>
+                                <label className="text-[9px] font-black uppercase tracking-widest text-muted-foreground block mb-1">Direction</label>
+                                <select 
+                                    value={txTypeFilter}
+                                    onChange={e => setTxTypeFilter(e.target.value as any)}
+                                    className="w-full py-2 px-3 bg-slate-50 dark:bg-dark-muted rounded-xl text-xs font-bold text-foreground border border-border dark:border-dark-border focus:outline-none focus:ring-2 focus:ring-primary"
+                                >
+                                    <option value="all">All Directions (Credit & Debit)</option>
+                                    <option value="credit">Credit / Inward (+)</option>
+                                    <option value="debit">Debit / Outward (-)</option>
+                                </select>
+                            </div>
+
+                            {/* Customer Filter */}
+                            <div>
+                                <label className="text-[9px] font-black uppercase tracking-widest text-muted-foreground block mb-1">Customer Account</label>
+                                <select 
+                                    value={txUserFilter}
+                                    onChange={e => setTxUserFilter(e.target.value)}
+                                    className="w-full py-2 px-3 bg-slate-50 dark:bg-dark-muted rounded-xl text-xs font-bold text-foreground border border-border dark:border-dark-border focus:outline-none focus:ring-2 focus:ring-primary"
+                                >
+                                    <option value="all">All Customers ({customers.length})</option>
+                                    {customers.map(c => (
+                                        <option key={c.id} value={c.id}>
+                                            {c.name} ({c.accountNumber || c.id})
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            {/* Category Filter */}
+                            <div>
+                                <label className="text-[9px] font-black uppercase tracking-widest text-muted-foreground block mb-1">Category</label>
+                                <select 
+                                    value={txCategoryFilter}
+                                    onChange={e => setTxCategoryFilter(e.target.value)}
+                                    className="w-full py-2 px-3 bg-slate-50 dark:bg-dark-muted rounded-xl text-xs font-bold text-foreground border border-border dark:border-dark-border focus:outline-none focus:ring-2 focus:ring-primary"
+                                >
+                                    <option value="all">All Categories</option>
+                                    {availableCategories.map(cat => (
+                                        <option key={cat} value={cat}>{cat}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            {/* Sort Filter */}
+                            <div>
+                                <label className="text-[9px] font-black uppercase tracking-widest text-muted-foreground block mb-1">Sort By</label>
+                                <select 
+                                    value={txSortBy}
+                                    onChange={e => setTxSortBy(e.target.value as any)}
+                                    className="w-full py-2 px-3 bg-slate-50 dark:bg-dark-muted rounded-xl text-xs font-bold text-foreground border border-border dark:border-dark-border focus:outline-none focus:ring-2 focus:ring-primary"
+                                >
+                                    <option value="newest">Date (Newest First)</option>
+                                    <option value="oldest">Date (Oldest First)</option>
+                                    <option value="amount_high">Amount (Highest First)</option>
+                                    <option value="amount_low">Amount (Lowest First)</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        {/* Active Filter Indicators */}
+                        {(txSearchQuery || txStatusFilter !== 'all' || txTypeFilter !== 'all' || txCategoryFilter !== 'all' || txUserFilter !== 'all') && (
+                            <div className="flex items-center justify-between text-xs pt-1 text-muted-foreground">
+                                <span>Showing <strong>{filteredTransactions.length}</strong> of {allTransactions.length} transactions</span>
+                                <button 
+                                    onClick={() => {
+                                        setTxSearchQuery('');
+                                        setTxStatusFilter('all');
+                                        setTxTypeFilter('all');
+                                        setTxCategoryFilter('all');
+                                        setTxUserFilter('all');
+                                    }}
+                                    className="text-[10px] font-black text-primary hover:underline uppercase tracking-wider"
+                                >
+                                    Reset Filters
+                                </button>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Transaction List */}
+                    <div className="space-y-3">
+                        {filteredTransactions.length === 0 ? (
+                            <div className="bg-white dark:bg-dark-card rounded-2xl border border-border dark:border-dark-border p-12 text-center space-y-4 shadow-sm">
+                                <div className="w-14 h-14 bg-slate-100 dark:bg-dark-muted rounded-full flex items-center justify-center mx-auto text-muted-foreground">
+                                    <RefreshCwIcon className="w-6 h-6 opacity-40" />
+                                </div>
+                                <div>
+                                    <h3 className="text-sm font-black uppercase tracking-wider text-foreground">No Transactions Found</h3>
+                                    <p className="text-xs text-muted-foreground mt-1 max-w-md mx-auto">
+                                        No ledger records match your current filter criteria. You can clear filters or post a new transaction to any customer account.
+                                    </p>
+                                </div>
+                                <button 
+                                    onClick={() => handleOpenCreateTxModal()}
+                                    className="px-4 py-2 bg-primary text-primary-foreground rounded-xl text-xs font-black uppercase tracking-wider hover:opacity-90 transition inline-flex items-center gap-1.5"
+                                >
+                                    <Plus className="w-4 h-4" />
+                                    Post First Transaction
+                                </button>
+                            </div>
+                        ) : (
+                            filteredTransactions.map((tx, idx) => {
+                                const isExpanded = expandedTxId === tx.id;
+                                const isCredit = tx.type === 'credit';
+
+                                return (
+                                    <div 
+                                        key={`${tx.id}-${tx.userId || ''}-${idx}`} 
+                                        className="bg-white dark:bg-dark-card rounded-2xl border border-border dark:border-dark-border shadow-sm hover:border-primary/30 transition-all duration-200 overflow-hidden"
+                                    >
+                                        {/* Main Card Header */}
+                                        <div className="p-5">
+                                            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                                                {/* Left side: Type Icon, Customer & Description */}
+                                                <div className="flex items-start gap-3.5 flex-1 min-w-0">
+                                                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 mt-0.5 ${
+                                                        isCredit 
+                                                            ? 'bg-emerald-500/10 text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-400 border border-emerald-500/20' 
+                                                            : 'bg-rose-500/10 text-rose-600 dark:bg-rose-950/30 dark:text-rose-400 border border-rose-500/20'
+                                                    }`}>
+                                                        {isCredit ? <ArrowDownLeft className="w-5 h-5" /> : <ArrowUpRight className="w-5 h-5" />}
+                                                    </div>
+                                                    <div className="min-w-0 flex-1">
+                                                        <div className="flex items-center gap-2 flex-wrap">
+                                                            <span className="text-xs font-black text-foreground uppercase tracking-tight">
+                                                                {tx.userName || 'Account Holder'}
+                                                            </span>
+                                                            <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-slate-100 dark:bg-dark-muted text-muted-foreground font-semibold">
+                                                                Acct: {tx.userAccountNumber || tx.senderAccount || 'Standard'}
+                                                            </span>
+                                                            <span className="text-[9px] font-bold px-2 py-0.5 rounded-md bg-blue-500/10 text-blue-600 dark:text-blue-400 uppercase">
+                                                                {tx.category || 'Transfer'}
+                                                            </span>
+                                                        </div>
+                                                        <p className="text-xs font-semibold text-foreground/80 mt-1 truncate">
+                                                            {tx.description || 'Institutional Book Transfer'}
+                                                        </p>
+                                                        <div className="flex items-center gap-2 mt-1.5 text-[10px] text-muted-foreground flex-wrap">
+                                                            <span className="font-mono font-medium">{tx.reference || tx.id}</span>
+                                                            <span>•</span>
+                                                            <span>{new Date(tx.date || Date.now()).toLocaleString()}</span>
+                                                            {tx.bankName && (
+                                                                <>
+                                                                    <span>•</span>
+                                                                    <span>{tx.bankName}</span>
+                                                                </>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                {/* Right side: Amount & Status Badge */}
+                                                <div className="flex lg:flex-col items-center lg:items-end justify-between lg:justify-center gap-2 shrink-0">
+                                                    <div className="text-right">
+                                                        <span className={`text-base font-black tracking-tight ${
+                                                            isCredit ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'
+                                                        }`}>
+                                                            {isCredit ? '+' : '-'}{formatCurrency(tx.amount || 0)}
+                                                        </span>
+                                                        {tx.currency && tx.currency !== 'USD' && (
+                                                            <span className="text-[9px] font-bold text-muted-foreground ml-1 uppercase">
+                                                                ({tx.currency})
+                                                            </span>
+                                                        )}
+                                                    </div>
+
+                                                    <div className="flex items-center gap-2">
+                                                        <span className={`text-[10px] font-black uppercase px-2.5 py-1 rounded-full flex items-center gap-1 ${
+                                                            tx.status === 'Completed' 
+                                                                ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20' :
+                                                            tx.status === 'Pending' 
+                                                                ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20' :
+                                                            tx.status === 'Held' 
+                                                                ? 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20' :
+                                                            tx.status === 'Reversed' 
+                                                                ? 'bg-slate-500/10 text-slate-600 dark:text-slate-400 border border-slate-500/20' :
+                                                                'bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20'
+                                                        }`}>
+                                                            {tx.status === 'Completed' && <CheckCircle2 className="w-3 h-3" />}
+                                                            {tx.status === 'Pending' && <Clock className="w-3 h-3" />}
+                                                            {tx.status === 'Held' && <ShieldAlert className="w-3 h-3" />}
+                                                            {tx.status === 'Reversed' && <RotateCcw className="w-3 h-3" />}
+                                                            {tx.status === 'Failed' && <AlertTriangle className="w-3 h-3" />}
+                                                            {tx.status || 'Completed'}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {/* Staff Notes & Advisory Badge if present */}
+                                            {((tx.internalNotes || tx.adminNotes) || (tx.statusReason || tx.failureReason)) && (
+                                                <div className="mt-3 pt-3 border-t border-dashed border-border dark:border-dark-border flex flex-wrap gap-2 text-xs">
+                                                    {(tx.internalNotes || tx.adminNotes) && (
+                                                        <div className="flex items-start gap-1.5 bg-amber-500/10 text-amber-800 dark:text-amber-300 px-3 py-1.5 rounded-xl border border-amber-500/20 text-[11px] max-w-2xl">
+                                                            <FileText className="w-3.5 h-3.5 shrink-0 mt-0.5 text-amber-600" />
+                                                            <div>
+                                                                <span className="font-black uppercase tracking-wider text-[9px] mr-1">Staff Note:</span>
+                                                                <span>{tx.internalNotes || tx.adminNotes}</span>
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                    {(tx.statusReason || tx.failureReason) && (
+                                                        <div className="flex items-start gap-1.5 bg-rose-500/10 text-rose-800 dark:text-rose-300 px-3 py-1.5 rounded-xl border border-rose-500/20 text-[11px] max-w-2xl">
+                                                            <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5 text-rose-600" />
+                                                            <div>
+                                                                <span className="font-black uppercase tracking-wider text-[9px] mr-1">Advisory:</span>
+                                                                <span>{tx.statusReason || tx.failureReason}</span>
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+
+                                            {/* Expanded Detailed Audit Metadata */}
+                                            {isExpanded && (
+                                                <div className="mt-4 pt-4 border-t border-border/60 dark:border-dark-border/60 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 text-[11px] text-muted-foreground animate-in fade-in duration-200 bg-slate-50/50 dark:bg-dark-muted/20 p-4 rounded-xl">
+                                                    <div className="flex justify-between border-b border-border/40 pb-1">
+                                                        <span className="font-bold opacity-60">Transaction ID:</span>
+                                                        <span className="font-mono font-bold text-foreground select-all">{tx.id}</span>
+                                                    </div>
+                                                    <div className="flex justify-between border-b border-border/40 pb-1">
+                                                        <span className="font-bold opacity-60">Reference Code:</span>
+                                                        <span className="font-mono font-bold text-foreground select-all">{tx.reference}</span>
+                                                    </div>
+                                                    <div className="flex justify-between border-b border-border/40 pb-1">
+                                                        <span className="font-bold opacity-60">Direction:</span>
+                                                        <span className="font-bold text-foreground uppercase">{tx.type}</span>
+                                                    </div>
+                                                    <div className="flex justify-between border-b border-border/40 pb-1">
+                                                        <span className="font-bold opacity-60">Sender Name:</span>
+                                                        <span className="font-bold text-foreground">{tx.senderName || tx.userName || 'N/A'}</span>
+                                                    </div>
+                                                    <div className="flex justify-between border-b border-border/40 pb-1">
+                                                        <span className="font-bold opacity-60">Sender Account:</span>
+                                                        <span className="font-mono font-bold text-foreground">{tx.senderAccount || tx.userAccountNumber || 'N/A'}</span>
+                                                    </div>
+                                                    <div className="flex justify-between border-b border-border/40 pb-1">
+                                                        <span className="font-bold opacity-60">Receiver Name:</span>
+                                                        <span className="font-bold text-foreground">{tx.receiverName || 'Cathay Bank Customer'}</span>
+                                                    </div>
+                                                    <div className="flex justify-between border-b border-border/40 pb-1">
+                                                        <span className="font-bold opacity-60">Receiver Account:</span>
+                                                        <span className="font-mono font-bold text-foreground">{tx.receiverAccount || 'Internal Ledger'}</span>
+                                                    </div>
+                                                    <div className="flex justify-between border-b border-border/40 pb-1">
+                                                        <span className="font-bold opacity-60">Institution:</span>
+                                                        <span className="font-bold text-foreground">{tx.bankName || 'Cathay Bank USA'}</span>
+                                                    </div>
+                                                    <div className="flex justify-between border-b border-border/40 pb-1">
+                                                        <span className="font-bold opacity-60">Routing / ABA:</span>
+                                                        <span className="font-mono font-bold text-foreground">{tx.routingNumber || '122000496'}</span>
+                                                    </div>
+                                                    <div className="flex justify-between border-b border-border/40 pb-1">
+                                                        <span className="font-bold opacity-60">SWIFT / BIC:</span>
+                                                        <span className="font-mono font-bold text-foreground">{tx.swiftCode || 'CATHUS6S'}</span>
+                                                    </div>
+                                                    <div className="flex justify-between border-b border-border/40 pb-1">
+                                                        <span className="font-bold opacity-60">Processing Fee:</span>
+                                                        <span className="font-bold text-foreground">{formatCurrency(tx.fee || 0)}</span>
+                                                    </div>
+                                                    <div className="flex justify-between border-b border-border/40 pb-1">
+                                                        <span className="font-bold opacity-60">Customer Balance:</span>
+                                                        <span className="font-bold text-foreground">{formatCurrency(tx.userBalance || 0)}</span>
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* Action Buttons Toolbar */}
+                                            <div className="mt-4 pt-3 border-t border-border/40 dark:border-dark-border/40 flex flex-wrap items-center justify-between gap-2">
+                                                {/* Left Action Buttons: Edit Status & Notes, Voucher, View Details */}
+                                                <div className="flex items-center gap-1.5 flex-wrap">
+                                                    <button 
+                                                        onClick={() => handleOpenEditTxModal(tx)}
+                                                        className="px-3 py-1.5 bg-primary/10 hover:bg-primary/20 text-primary rounded-xl text-[10px] font-black uppercase tracking-wider transition flex items-center gap-1.5 border border-primary/20"
+                                                    >
+                                                        <FileText className="w-3.5 h-3.5" />
+                                                        Edit Status & Notes
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => setViewingVoucherTx(tx)}
+                                                        className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-dark-muted text-slate-700 dark:text-slate-300 rounded-xl text-[10px] font-black uppercase tracking-wider transition flex items-center gap-1.5 border border-border dark:border-dark-border"
+                                                    >
+                                                        <Printer className="w-3.5 h-3.5" />
+                                                        Bank Voucher
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => setExpandedTxId(isExpanded ? null : tx.id)}
+                                                        className="px-2.5 py-1.5 text-muted-foreground hover:text-foreground text-[10px] font-black uppercase tracking-wider transition"
+                                                    >
+                                                        {isExpanded ? 'Hide Specs ▲' : 'Audit Specs ▼'}
+                                                    </button>
+                                                </div>
+
+                                                {/* Right Action Buttons: Quick Status Pills, Reverse, Void */}
+                                                <div className="flex items-center gap-1.5 flex-wrap">
+                                                    <button 
+                                                        onClick={() => handleTransactionStatus(tx.userId!, tx.id, 'Completed')} 
+                                                        className="px-2.5 py-1.5 bg-emerald-600/10 hover:bg-emerald-600/20 text-emerald-600 rounded-lg text-[9px] font-black uppercase tracking-wider border border-emerald-600/20 transition"
+                                                    >
+                                                        Mark Settled
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => handleTransactionStatus(tx.userId!, tx.id, 'Held')} 
+                                                        className="px-2.5 py-1.5 bg-purple-600/10 hover:bg-purple-600/20 text-purple-600 rounded-lg text-[9px] font-black uppercase tracking-wider border border-purple-600/20 transition"
+                                                    >
+                                                        Hold
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => handleTransactionStatus(tx.userId!, tx.id, 'Failed')} 
+                                                        className="px-2.5 py-1.5 bg-rose-600/10 hover:bg-rose-600/20 text-rose-600 rounded-lg text-[9px] font-black uppercase tracking-wider border border-rose-600/20 transition"
+                                                    >
+                                                        Fail
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => {
+                                                            setReversalModalTx(tx);
+                                                            setReversalReason('');
+                                                        }} 
+                                                        className="px-2.5 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-400 rounded-lg text-[9px] font-black uppercase tracking-wider border border-amber-500/20 transition flex items-center gap-1"
+                                                    >
+                                                        <RotateCcw className="w-3 h-3" />
+                                                        Recall
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => {
+                                                            setDeletingTxModal(tx);
+                                                            setDeleteTxReason('');
+                                                            setDeleteTxRollbackBalance(true);
+                                                        }} 
+                                                        className="p-1.5 text-rose-500 hover:bg-rose-500/10 rounded-lg transition"
+                                                        title="Void & Delete Transaction"
+                                                    >
+                                                        <Trash2 className="w-3.5 h-3.5" />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })
+                        )}
+                    </div>
                 </div>
             )}
 
@@ -3796,6 +4589,703 @@ const AdminDashboard = () => {
                 </Modal>
             )}
 
+            {/* Modal: Create & Post Manual Transaction */}
+            {isCreateTxModalOpen && (
+                <Modal isOpen={isCreateTxModalOpen} onClose={() => setIsCreateTxModalOpen(false)} className="max-w-2xl">
+                    <div className="p-6 sm:p-8 space-y-6 max-h-[85vh] overflow-y-auto">
+                        <div className="flex items-center justify-between pb-4 border-b border-border/50">
+                            <div className="flex items-center gap-2.5 text-emerald-600">
+                                <div className="p-2 bg-emerald-500/10 rounded-xl border border-emerald-500/20">
+                                    <Plus className="w-5 h-5" />
+                                </div>
+                                <div>
+                                    <h3 className="text-base font-black uppercase tracking-tight text-foreground">Post Manual Transaction</h3>
+                                    <p className="text-[10px] text-muted-foreground">Book credits, debits, wires, and adjustments directly to customer ledger.</p>
+                                </div>
+                            </div>
+                            <button 
+                                onClick={() => setIsCreateTxModalOpen(false)}
+                                className="p-1 text-muted-foreground hover:text-foreground rounded-lg transition"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        {/* Form Fields */}
+                        <div className="space-y-4">
+                            {/* Customer Selector */}
+                            <div className="space-y-1">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Target Customer Account *</label>
+                                <select 
+                                    value={createTxUserId}
+                                    onChange={e => {
+                                        const uid = e.target.value;
+                                        setCreateTxUserId(uid);
+                                        const u = state.users.find(usr => usr.id === uid);
+                                        if (u) {
+                                            setCreateTxReceiverName(u.name || '');
+                                            setCreateTxReceiverAccount(u.accountNumber || '');
+                                            setCreateTxCurrency(u.currency || 'USD');
+                                        }
+                                    }}
+                                    className="w-full p-3 bg-slate-50 dark:bg-dark-muted rounded-xl text-xs font-bold text-foreground border border-border dark:border-dark-border focus:ring-2 focus:ring-primary"
+                                >
+                                    {customers.map(c => (
+                                        <option key={c.id} value={c.id}>
+                                            {c.name} — Acct: {c.accountNumber || c.id} (Balance: {formatCurrency(c.balance || 0)})
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            {/* Direction & Amount Row */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div className="space-y-1">
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Transaction Direction *</label>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <button 
+                                            type="button"
+                                            onClick={() => {
+                                                setCreateTxType('credit');
+                                                setCreateTxSenderName('Federal Reserve Clearing / Treasury');
+                                                setCreateTxSenderAccount('FED-WIRE-CLEARING');
+                                                const u = state.users.find(usr => usr.id === createTxUserId);
+                                                setCreateTxReceiverName(u?.name || 'Account Holder');
+                                                setCreateTxReceiverAccount(u?.accountNumber || '');
+                                            }}
+                                            className={`py-2.5 px-3 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 border transition ${
+                                                createTxType === 'credit'
+                                                    ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
+                                                    : 'bg-slate-50 dark:bg-dark-muted text-muted-foreground border-border hover:text-foreground'
+                                            }`}
+                                        >
+                                            <ArrowDownLeft className="w-4 h-4" />
+                                            Credit (+) Inflow
+                                        </button>
+                                        <button 
+                                            type="button"
+                                            onClick={() => {
+                                                setCreateTxType('debit');
+                                                const u = state.users.find(usr => usr.id === createTxUserId);
+                                                setCreateTxSenderName(u?.name || 'Account Holder');
+                                                setCreateTxSenderAccount(u?.accountNumber || '');
+                                                setCreateTxReceiverName('Cathay Bank Settlement Account');
+                                                setCreateTxReceiverAccount('SETTLEMENT-OUTWARD');
+                                            }}
+                                            className={`py-2.5 px-3 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 border transition ${
+                                                createTxType === 'debit'
+                                                    ? 'bg-rose-600 text-white border-rose-600 shadow-sm'
+                                                    : 'bg-slate-50 dark:bg-dark-muted text-muted-foreground border-border hover:text-foreground'
+                                            }`}
+                                        >
+                                            <ArrowUpRight className="w-4 h-4" />
+                                            Debit (-) Outflow
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-1">
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Transaction Amount *</label>
+                                    <div className="relative">
+                                        <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-bold text-muted-foreground">$</span>
+                                        <input 
+                                            type="number"
+                                            step="any"
+                                            min="0.01"
+                                            value={createTxAmount}
+                                            onChange={e => setCreateTxAmount(e.target.value)}
+                                            placeholder="0.00"
+                                            autoComplete="off"
+                                            className="w-full pl-8 pr-4 py-2.5 bg-slate-50 dark:bg-dark-muted rounded-xl text-sm font-bold text-foreground border border-border dark:border-dark-border focus:ring-2 focus:ring-primary"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Category, Status & Currency Row */}
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                <div className="space-y-1">
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Category</label>
+                                    <select 
+                                        value={createTxCategory}
+                                        onChange={e => setCreateTxCategory(e.target.value)}
+                                        className="w-full py-2.5 px-3 bg-slate-50 dark:bg-dark-muted rounded-xl text-xs font-bold text-foreground border border-border dark:border-dark-border focus:ring-2 focus:ring-primary"
+                                    >
+                                        <option value="Wire Transfer">Wire Transfer</option>
+                                        <option value="Direct Deposit">Direct Deposit</option>
+                                        <option value="ACH Transfer">ACH Settlement</option>
+                                        <option value="Check Deposit">Check Deposit</option>
+                                        <option value="Loan Disbursement">Loan Disbursement</option>
+                                        <option value="Interest Credit">Interest Credit</option>
+                                        <option value="ATM Withdrawal">ATM Withdrawal</option>
+                                        <option value="POS Transaction">POS Purchase</option>
+                                        <option value="Administrative Adjustment">Admin Adjustment</option>
+                                        <option value="Fee Assessment">Service Fee</option>
+                                        <option value="International Remittance">International Remittance</option>
+                                    </select>
+                                </div>
+
+                                <div className="space-y-1">
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Initial Status</label>
+                                    <select 
+                                        value={createTxStatus}
+                                        onChange={e => setCreateTxStatus(e.target.value as any)}
+                                        className="w-full py-2.5 px-3 bg-slate-50 dark:bg-dark-muted rounded-xl text-xs font-bold text-foreground border border-border dark:border-dark-border focus:ring-2 focus:ring-primary"
+                                    >
+                                        <option value="Completed">Completed (Settled)</option>
+                                        <option value="Pending">Pending (Clearing)</option>
+                                        <option value="Held">Held (Compliance Hold)</option>
+                                        <option value="Failed">Failed (Rejected)</option>
+                                    </select>
+                                </div>
+
+                                <div className="space-y-1">
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Currency</label>
+                                    <select 
+                                        value={createTxCurrency}
+                                        onChange={e => setCreateTxCurrency(e.target.value)}
+                                        className="w-full py-2.5 px-3 bg-slate-50 dark:bg-dark-muted rounded-xl text-xs font-bold text-foreground border border-border dark:border-dark-border focus:ring-2 focus:ring-primary"
+                                    >
+                                        <option value="USD">USD ($)</option>
+                                        <option value="EUR">EUR (€)</option>
+                                        <option value="GBP">GBP (£)</option>
+                                        <option value="CAD">CAD ($)</option>
+                                        <option value="AUD">AUD ($)</option>
+                                        <option value="SGD">SGD ($)</option>
+                                        <option value="HKD">HKD ($)</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            {/* Reference Code & Effective Date */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div className="space-y-1">
+                                    <div className="flex justify-between items-center">
+                                        <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Reference Code</label>
+                                        <button 
+                                            type="button"
+                                            onClick={() => setCreateTxReference(`TXN-USA-${Date.now().toString().slice(-6)}-${Math.floor(1000 + Math.random() * 9000)}`)}
+                                            className="text-[9px] text-primary hover:underline font-bold uppercase"
+                                        >
+                                            Regenerate
+                                        </button>
+                                    </div>
+                                    <input 
+                                        type="text"
+                                        value={createTxReference}
+                                        onChange={e => setCreateTxReference(e.target.value)}
+                                        autoComplete="off"
+                                        className="w-full p-2.5 bg-slate-50 dark:bg-dark-muted rounded-xl text-xs font-mono font-bold text-foreground border border-border dark:border-dark-border focus:ring-2 focus:ring-primary"
+                                    />
+                                </div>
+
+                                <div className="space-y-1">
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Effective Date & Time</label>
+                                    <input 
+                                        type="datetime-local"
+                                        value={createTxDate}
+                                        onChange={e => setCreateTxDate(e.target.value)}
+                                        className="w-full p-2.5 bg-slate-50 dark:bg-dark-muted rounded-xl text-xs font-bold text-foreground border border-border dark:border-dark-border focus:ring-2 focus:ring-primary"
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Description / Narrative */}
+                            <div className="space-y-1">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Description / Public Narrative *</label>
+                                <input 
+                                    type="text"
+                                    value={createTxDescription}
+                                    onChange={e => setCreateTxDescription(e.target.value)}
+                                    placeholder="e.g. Fedwire Inward Remittance from Treasury"
+                                    autoComplete="off"
+                                    className="w-full p-2.5 bg-slate-50 dark:bg-dark-muted rounded-xl text-xs font-medium text-foreground border border-border dark:border-dark-border focus:ring-2 focus:ring-primary"
+                                />
+                            </div>
+
+                            {/* Counterparty Accordion / Grid */}
+                            <div className="p-4 bg-slate-50 dark:bg-dark-muted/40 rounded-2xl border border-border dark:border-dark-border space-y-3">
+                                <p className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">Interbank Counterparty Specifications</p>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="text-[9px] font-bold uppercase text-muted-foreground">Originator (Sender) Name</label>
+                                        <input 
+                                            type="text"
+                                            value={createTxSenderName}
+                                            onChange={e => setCreateTxSenderName(e.target.value)}
+                                            autoComplete="off"
+                                            className="w-full p-2 bg-white dark:bg-dark-card rounded-lg text-xs font-medium border border-border dark:border-dark-border"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-[9px] font-bold uppercase text-muted-foreground">Originator Account #</label>
+                                        <input 
+                                            type="text"
+                                            value={createTxSenderAccount}
+                                            onChange={e => setCreateTxSenderAccount(e.target.value)}
+                                            autoComplete="off"
+                                            className="w-full p-2 bg-white dark:bg-dark-card rounded-lg text-xs font-mono border border-border dark:border-dark-border"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-[9px] font-bold uppercase text-muted-foreground">Beneficiary (Receiver) Name</label>
+                                        <input 
+                                            type="text"
+                                            value={createTxReceiverName}
+                                            onChange={e => setCreateTxReceiverName(e.target.value)}
+                                            autoComplete="off"
+                                            className="w-full p-2 bg-white dark:bg-dark-card rounded-lg text-xs font-medium border border-border dark:border-dark-border"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-[9px] font-bold uppercase text-muted-foreground">Beneficiary Account #</label>
+                                        <input 
+                                            type="text"
+                                            value={createTxReceiverAccount}
+                                            onChange={e => setCreateTxReceiverAccount(e.target.value)}
+                                            autoComplete="off"
+                                            className="w-full p-2 bg-white dark:bg-dark-card rounded-lg text-xs font-mono border border-border dark:border-dark-border"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Staff Internal Notes & Status Reason */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div className="space-y-1">
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-amber-600 flex items-center gap-1">
+                                        <FileText className="w-3 h-3" />
+                                        Staff Internal Notes (Confidential)
+                                    </label>
+                                    <textarea 
+                                        value={createTxInternalNotes}
+                                        onChange={e => setCreateTxInternalNotes(e.target.value)}
+                                        placeholder="Internal compliance record, verification notes, audit reference..."
+                                        rows={3}
+                                        className="w-full p-2.5 bg-slate-50 dark:bg-dark-muted rounded-xl text-xs font-medium text-foreground border border-border dark:border-dark-border focus:ring-2 focus:ring-primary"
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-rose-600 flex items-center gap-1">
+                                        <AlertCircle className="w-3 h-3" />
+                                        Public Advisory / Status Reason
+                                    </label>
+                                    <textarea 
+                                        value={createTxStatusReason}
+                                        onChange={e => setCreateTxStatusReason(e.target.value)}
+                                        placeholder="Message visible to customer (e.g. Clearing in progress, Compliance verification)..."
+                                        rows={3}
+                                        className="w-full p-2.5 bg-slate-50 dark:bg-dark-muted rounded-xl text-xs font-medium text-foreground border border-border dark:border-dark-border focus:ring-2 focus:ring-primary"
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Ledger Control Toggles */}
+                            <div className="space-y-2 pt-2 border-t border-border/50">
+                                <label className="flex items-center gap-2 cursor-pointer">
+                                    <input 
+                                        type="checkbox"
+                                        checked={createTxUpdateBalance}
+                                        onChange={e => setCreateTxUpdateBalance(e.target.checked)}
+                                        className="w-4 h-4 rounded text-primary focus:ring-primary"
+                                    />
+                                    <span className="text-xs font-bold text-foreground">
+                                        Directly update customer ledger balance (credit or debit)
+                                    </span>
+                                </label>
+                                <label className="flex items-center gap-2 cursor-pointer">
+                                    <input 
+                                        type="checkbox"
+                                        checked={createTxSendEmail}
+                                        onChange={e => setCreateTxSendEmail(e.target.checked)}
+                                        className="w-4 h-4 rounded text-primary focus:ring-primary"
+                                    />
+                                    <span className="text-xs font-bold text-foreground">
+                                        Send official transaction advisory email notification to customer
+                                    </span>
+                                </label>
+                            </div>
+                        </div>
+
+                        {/* Modal Action Buttons */}
+                        <div className="flex items-center gap-3 pt-4 border-t border-border/50">
+                            <button 
+                                type="button"
+                                onClick={() => setIsCreateTxModalOpen(false)}
+                                className="flex-1 py-3 bg-slate-100 dark:bg-dark-muted hover:bg-slate-200 text-muted-foreground rounded-xl text-xs font-black uppercase tracking-wider transition"
+                            >
+                                Cancel
+                            </button>
+                            <button 
+                                type="button"
+                                onClick={handlePostNewTransaction}
+                                disabled={isSubmittingTx}
+                                className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-black uppercase tracking-wider transition flex items-center justify-center gap-2 shadow-lg shadow-emerald-900/20 disabled:opacity-50"
+                            >
+                                {isSubmittingTx ? (
+                                    <>
+                                        <RefreshCw className="w-4 h-4 animate-spin" />
+                                        Posting to Ledger...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Check className="w-4 h-4" />
+                                        Post Transaction
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    </div>
+                </Modal>
+            )}
+
+            {/* Modal: Edit Transaction Record, Status & Notes */}
+            {editingTxModal && (
+                <Modal isOpen={!!editingTxModal} onClose={() => setEditingTxModal(null)} className="max-w-xl">
+                    <div className="p-6 sm:p-8 space-y-6 max-h-[85vh] overflow-y-auto">
+                        <div className="flex items-center justify-between pb-4 border-b border-border/50">
+                            <div className="flex items-center gap-2.5 text-primary">
+                                <div className="p-2 bg-primary/10 rounded-xl border border-primary/20">
+                                    <FileText className="w-5 h-5" />
+                                </div>
+                                <div>
+                                    <h3 className="text-base font-black uppercase tracking-tight text-foreground">Edit Transaction & Notes</h3>
+                                    <p className="text-[10px] text-muted-foreground">Update settlement status, write internal notes, and manage public advisories.</p>
+                                </div>
+                            </div>
+                            <button 
+                                onClick={() => setEditingTxModal(null)}
+                                className="p-1 text-muted-foreground hover:text-foreground rounded-lg transition"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        {/* Transaction Snapshot Header */}
+                        <div className="p-4 bg-slate-50 dark:bg-dark-muted/40 rounded-2xl border border-border dark:border-dark-border flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                            <div>
+                                <p className="text-xs font-black uppercase text-foreground">{editingTxModal.userName || 'Account Holder'}</p>
+                                <p className="text-[10px] font-mono text-muted-foreground mt-0.5">Ref: {editingTxModal.reference || editingTxModal.id}</p>
+                            </div>
+                            <div className="text-left sm:text-right">
+                                <p className="text-sm font-black text-foreground">{formatCurrency(editingTxModal.amount || 0)}</p>
+                                <p className="text-[10px] font-bold text-muted-foreground uppercase">{editingTxModal.type} • {editingTxModal.category}</p>
+                            </div>
+                        </div>
+
+                        {/* Edit Form */}
+                        <div className="space-y-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div className="space-y-1">
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Settlement Status *</label>
+                                    <select 
+                                        value={editTxStatus}
+                                        onChange={e => setEditTxStatus(e.target.value as any)}
+                                        className="w-full p-2.5 bg-slate-50 dark:bg-dark-muted rounded-xl text-xs font-bold text-foreground border border-border dark:border-dark-border focus:ring-2 focus:ring-primary"
+                                    >
+                                        <option value="Completed">Completed (Settled)</option>
+                                        <option value="Pending">Pending (Clearing)</option>
+                                        <option value="Held">Held (Regulatory / AML Hold)</option>
+                                        <option value="Failed">Failed (Rejected)</option>
+                                        <option value="Reversed">Reversed (Recalled)</option>
+                                    </select>
+                                </div>
+
+                                <div className="space-y-1">
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Category</label>
+                                    <input 
+                                        type="text"
+                                        value={editTxCategory}
+                                        onChange={e => setEditTxCategory(e.target.value)}
+                                        autoComplete="off"
+                                        className="w-full p-2.5 bg-slate-50 dark:bg-dark-muted rounded-xl text-xs font-bold text-foreground border border-border dark:border-dark-border focus:ring-2 focus:ring-primary"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="space-y-1">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Description / Narrative</label>
+                                <input 
+                                    type="text"
+                                    value={editTxDescription}
+                                    onChange={e => setEditTxDescription(e.target.value)}
+                                    autoComplete="off"
+                                    className="w-full p-2.5 bg-slate-50 dark:bg-dark-muted rounded-xl text-xs font-medium text-foreground border border-border dark:border-dark-border focus:ring-2 focus:ring-primary"
+                                />
+                            </div>
+
+                            <div className="space-y-1">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-amber-600 flex items-center gap-1">
+                                    <FileText className="w-3.5 h-3.5" />
+                                    Staff Internal Notes (Confidential Banking Notes)
+                                </label>
+                                <textarea 
+                                    value={editTxInternalNotes}
+                                    onChange={e => setEditTxInternalNotes(e.target.value)}
+                                    placeholder="Add internal notes on verification, correspondent bank clearing, AML/KYC review..."
+                                    rows={3}
+                                    className="w-full p-3 bg-slate-50 dark:bg-dark-muted rounded-xl text-xs font-medium text-foreground border border-border dark:border-dark-border focus:ring-2 focus:ring-primary"
+                                />
+                            </div>
+
+                            <div className="space-y-1">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-rose-600 flex items-center gap-1">
+                                    <AlertCircle className="w-3.5 h-3.5" />
+                                    Public Status Reason / Customer Advisory Notice
+                                </label>
+                                <textarea 
+                                    value={editTxStatusReason}
+                                    onChange={e => setEditTxStatusReason(e.target.value)}
+                                    placeholder="Explain status changes visible to the customer (e.g. Cleared by Federal Reserve, Held for source validation)..."
+                                    rows={2}
+                                    className="w-full p-3 bg-slate-50 dark:bg-dark-muted rounded-xl text-xs font-medium text-foreground border border-border dark:border-dark-border focus:ring-2 focus:ring-primary"
+                                />
+                            </div>
+
+                            {/* Balance Reconciliation Options */}
+                            <div className="space-y-2 pt-2 border-t border-border/50">
+                                <label className="flex items-center gap-2 cursor-pointer">
+                                    <input 
+                                        type="checkbox"
+                                        checked={editTxApplyBalanceDelta}
+                                        onChange={e => setEditTxApplyBalanceDelta(e.target.checked)}
+                                        className="w-4 h-4 rounded text-primary focus:ring-primary"
+                                    />
+                                    <span className="text-xs font-bold text-foreground">
+                                        Reconcile customer ledger balance if status changed between Settled and Failed/Reversed
+                                    </span>
+                                </label>
+                                <label className="flex items-center gap-2 cursor-pointer">
+                                    <input 
+                                        type="checkbox"
+                                        checked={editTxSendEmail}
+                                        onChange={e => setEditTxSendEmail(e.target.checked)}
+                                        className="w-4 h-4 rounded text-primary focus:ring-primary"
+                                    />
+                                    <span className="text-xs font-bold text-foreground">
+                                        Send status update advisory email to customer
+                                    </span>
+                                </label>
+                            </div>
+                        </div>
+
+                        {/* Modal Action Buttons */}
+                        <div className="flex items-center gap-3 pt-4 border-t border-border/50">
+                            <button 
+                                type="button"
+                                onClick={() => setEditingTxModal(null)}
+                                className="flex-1 py-3 bg-slate-100 dark:bg-dark-muted hover:bg-slate-200 text-muted-foreground rounded-xl text-xs font-black uppercase tracking-wider transition"
+                            >
+                                Cancel
+                            </button>
+                            <button 
+                                type="button"
+                                onClick={handleSaveTransactionEdit}
+                                disabled={isUpdatingTx}
+                                className="flex-1 py-3 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl text-xs font-black uppercase tracking-wider transition flex items-center justify-center gap-2 shadow-lg disabled:opacity-50"
+                            >
+                                {isUpdatingTx ? (
+                                    <>
+                                        <RefreshCw className="w-4 h-4 animate-spin" />
+                                        Saving...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Check className="w-4 h-4" />
+                                        Save Changes
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    </div>
+                </Modal>
+            )}
+
+            {/* Modal: Official Bank Transaction Voucher & Receipt */}
+            {viewingVoucherTx && (
+                <Modal isOpen={!!viewingVoucherTx} onClose={() => setViewingVoucherTx(null)} className="max-w-xl">
+                    <div className="p-6 sm:p-8 space-y-6 max-h-[85vh] overflow-y-auto">
+                        {/* Printable Voucher Card */}
+                        <div id="bank-voucher-content" className="bg-white dark:bg-dark-card p-6 rounded-2xl border-2 border-slate-200 dark:border-dark-border shadow-md space-y-5 text-slate-900 dark:text-white">
+                            {/* Bank Header */}
+                            <div className="flex items-center justify-between border-b pb-4 border-slate-200 dark:border-dark-border">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center text-primary font-black border border-primary/20">
+                                        <LandmarkIcon className="w-6 h-6" />
+                                    </div>
+                                    <div>
+                                        <h4 className="text-sm font-black uppercase tracking-wider text-foreground">Cathay Bank USA, N.A.</h4>
+                                        <p className="text-[9px] text-muted-foreground font-semibold">FDIC Insured • Federal Reserve Routing #122000496 • SWIFT: CATHUS6S</p>
+                                    </div>
+                                </div>
+                                <div className="text-right">
+                                    <span className="text-[9px] font-black uppercase px-2 py-1 rounded bg-slate-100 dark:bg-dark-muted font-mono">
+                                        Official Voucher
+                                    </span>
+                                </div>
+                            </div>
+
+                            {/* Big Amount & Status Banner */}
+                            <div className="p-4 bg-slate-50 dark:bg-dark-muted/40 rounded-xl border border-slate-200 dark:border-dark-border text-center space-y-1">
+                                <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Authorized Transaction Amount</p>
+                                <p className={`text-2xl font-black ${
+                                    viewingVoucherTx.type === 'credit' ? 'text-emerald-600' : 'text-slate-900 dark:text-white'
+                                }`}>
+                                    {viewingVoucherTx.type === 'credit' ? '+' : '-'}{formatCurrency(viewingVoucherTx.amount || 0)}
+                                </p>
+                                <p className="text-[10px] font-bold text-muted-foreground uppercase">
+                                    Status: <span className="text-emerald-600 font-black">{viewingVoucherTx.status || 'Completed'}</span> • Channel: {viewingVoucherTx.category || 'Wire Transfer'}
+                                </p>
+                            </div>
+
+                            {/* Transaction Details Grid */}
+                            <div className="grid grid-cols-2 gap-3 text-xs">
+                                <div>
+                                    <span className="text-[9px] font-bold uppercase text-muted-foreground block">Reference Number</span>
+                                    <span className="font-mono font-bold">{viewingVoucherTx.reference || viewingVoucherTx.id}</span>
+                                </div>
+                                <div>
+                                    <span className="text-[9px] font-bold uppercase text-muted-foreground block">Clearing Date</span>
+                                    <span className="font-semibold">{new Date(viewingVoucherTx.date || Date.now()).toLocaleString()}</span>
+                                </div>
+                                <div>
+                                    <span className="text-[9px] font-bold uppercase text-muted-foreground block">Originator / Debtor</span>
+                                    <span className="font-semibold">{viewingVoucherTx.senderName || viewingVoucherTx.userName || 'Federal Reserve Clearing'}</span>
+                                    <span className="text-[10px] font-mono text-muted-foreground block">Acct: {viewingVoucherTx.senderAccount || viewingVoucherTx.userAccountNumber || 'N/A'}</span>
+                                </div>
+                                <div>
+                                    <span className="text-[9px] font-bold uppercase text-muted-foreground block">Beneficiary / Creditor</span>
+                                    <span className="font-semibold">{viewingVoucherTx.receiverName || viewingVoucherTx.userName || 'Account Holder'}</span>
+                                    <span className="text-[10px] font-mono text-muted-foreground block">Acct: {viewingVoucherTx.receiverAccount || viewingVoucherTx.userAccountNumber || 'N/A'}</span>
+                                </div>
+                                <div className="col-span-2">
+                                    <span className="text-[9px] font-bold uppercase text-muted-foreground block">Remittance Narrative</span>
+                                    <span className="font-medium">{viewingVoucherTx.description || 'Institutional Settlement'}</span>
+                                </div>
+                                {viewingVoucherTx.internalNotes && (
+                                    <div className="col-span-2 p-2 bg-amber-500/10 rounded-lg text-[10px] text-amber-800 dark:text-amber-300">
+                                        <span className="font-bold uppercase mr-1">Staff Note:</span>
+                                        <span>{viewingVoucherTx.internalNotes}</span>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Official Seal / Security Watermark */}
+                            <div className="pt-3 border-t border-slate-200 dark:border-dark-border flex items-center justify-between text-[9px] text-muted-foreground">
+                                <span>Security Hash: SHA256-AUTH-{(viewingVoucherTx.id || 'TX').slice(-8).toUpperCase()}</span>
+                                <span className="font-black uppercase text-emerald-600 flex items-center gap-1">
+                                    <CheckCircle2 className="w-3 h-3" />
+                                    Clearing Authenticated
+                                </span>
+                            </div>
+                        </div>
+
+                        {/* Actions */}
+                        <div className="flex items-center gap-3">
+                            <button 
+                                onClick={() => setViewingVoucherTx(null)}
+                                className="flex-1 py-3 bg-slate-100 dark:bg-dark-muted hover:bg-slate-200 text-muted-foreground rounded-xl text-xs font-black uppercase tracking-wider transition"
+                            >
+                                Close
+                            </button>
+                            <button 
+                                onClick={() => {
+                                    generateReceiptPDF(viewingVoucherTx);
+                                }}
+                                className="flex-1 py-3 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl text-xs font-black uppercase tracking-wider transition flex items-center justify-center gap-2 shadow-lg"
+                            >
+                                <Download className="w-4 h-4" />
+                                Download PDF
+                            </button>
+                            <button 
+                                onClick={() => window.print()}
+                                className="px-4 py-3 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-black uppercase tracking-wider transition flex items-center gap-1.5"
+                            >
+                                <Printer className="w-4 h-4" />
+                                Print
+                            </button>
+                        </div>
+                    </div>
+                </Modal>
+            )}
+
+            {/* Modal: Void & Delete Transaction */}
+            {deletingTxModal && (
+                <Modal isOpen={!!deletingTxModal} onClose={() => setDeletingTxModal(null)} className="max-w-md">
+                    <div className="p-6 sm:p-8 space-y-5">
+                        <div className="flex items-center gap-2.5 text-rose-600">
+                            <div className="p-2 bg-rose-500/10 rounded-xl border border-rose-500/20">
+                                <Trash2 className="w-5 h-5" />
+                            </div>
+                            <div>
+                                <h3 className="text-base font-black uppercase tracking-tight text-foreground">Void & Delete Transaction</h3>
+                                <p className="text-[10px] text-muted-foreground">Irreversible ledger modification.</p>
+                            </div>
+                        </div>
+
+                        <div className="p-3 bg-rose-500/10 border border-rose-500/20 rounded-xl text-xs text-rose-800 dark:text-rose-300">
+                            <p className="font-bold">Warning: You are about to purge this transaction from the ledger.</p>
+                            <p className="mt-1 text-[11px]">
+                                Transaction #{deletingTxModal.id} ({formatCurrency(deletingTxModal.amount || 0)} - {deletingTxModal.description})
+                            </p>
+                        </div>
+
+                        <div className="space-y-3">
+                            <label className="flex items-center gap-2 cursor-pointer">
+                                <input 
+                                    type="checkbox"
+                                    checked={deleteTxRollbackBalance}
+                                    onChange={e => setDeleteTxRollbackBalance(e.target.checked)}
+                                    className="w-4 h-4 rounded text-rose-600 focus:ring-rose-500"
+                                />
+                                <span className="text-xs font-bold text-foreground">
+                                    Rollback balance delta (reverse the financial impact on customer balance)
+                                </span>
+                            </label>
+
+                            <div className="space-y-1">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Reason for Deletion *</label>
+                                <textarea 
+                                    value={deleteTxReason}
+                                    onChange={e => setDeleteTxReason(e.target.value)}
+                                    placeholder="Enter administrative reason for voiding this transaction..."
+                                    rows={2}
+                                    className="w-full p-2.5 bg-slate-50 dark:bg-dark-muted rounded-xl text-xs font-medium border border-border dark:border-dark-border"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="flex items-center gap-3 pt-3">
+                            <button 
+                                type="button"
+                                onClick={() => setDeletingTxModal(null)}
+                                className="flex-1 py-3 bg-slate-100 dark:bg-dark-muted hover:bg-slate-200 text-muted-foreground rounded-xl text-xs font-black uppercase tracking-wider transition"
+                            >
+                                Cancel
+                            </button>
+                            <button 
+                                type="button"
+                                onClick={handleDeleteTransactionExecute}
+                                disabled={isDeletingTx}
+                                className="flex-1 py-3 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition flex items-center justify-center gap-2 shadow-lg disabled:opacity-50"
+                            >
+                                {isDeletingTx ? (
+                                    <>
+                                        <RefreshCw className="w-4 h-4 animate-spin" />
+                                        Deleting...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Trash2 className="w-4 h-4" />
+                                        Void & Delete
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    </div>
+                </Modal>
+            )}
+
             {/* Modal: Role & Security Hold Management */}
             {roleModalUser && (
                 <Modal isOpen={!!roleModalUser} onClose={() => setRoleModalUser(null)} className="max-w-md">
@@ -4326,8 +5816,88 @@ await admin.auth().setCustomUserClaims(uid, {
                                     <span className="text-[9px] font-black uppercase text-muted-foreground block">KYC Status</span>
                                     <span className="font-bold text-emerald-600 dark:text-emerald-400 uppercase text-[10px]">Tier 3 Verified (Full Access)</span>
                                 </div>
+                                {inspectingUser.idType && (
+                                    <div>
+                                        <span className="text-[9px] font-black uppercase text-muted-foreground block">Government ID Type</span>
+                                        <span className="font-bold text-slate-800 dark:text-slate-100">{inspectingUser.idType}</span>
+                                    </div>
+                                )}
+                                {(inspectingUser.idNumber || inspectingUser.idCardNumber) && (
+                                    <div>
+                                        <span className="text-[9px] font-black uppercase text-muted-foreground block">Government ID / Document #</span>
+                                        <span className="font-mono font-bold text-blue-700 dark:text-blue-300">{inspectingUser.idNumber || inspectingUser.idCardNumber}</span>
+                                    </div>
+                                )}
+                                {inspectingUser.issuingAuthority && (
+                                    <div>
+                                        <span className="text-[9px] font-black uppercase text-muted-foreground block">Issuing Authority</span>
+                                        <span className="font-semibold text-slate-800 dark:text-slate-100">{inspectingUser.issuingAuthority}</span>
+                                    </div>
+                                )}
+                                {(inspectingUser.idIssueDate || inspectingUser.idExpiryDate) && (
+                                    <div>
+                                        <span className="text-[9px] font-black uppercase text-muted-foreground block">ID Validity</span>
+                                        <span className="font-semibold text-slate-800 dark:text-slate-100">
+                                            {inspectingUser.idIssueDate || 'N/A'} to {inspectingUser.idExpiryDate || 'N/A'}
+                                        </span>
+                                    </div>
+                                )}
+                                {(inspectingUser.ssnOrTin || inspectingUser.bvn) && (
+                                    <div>
+                                        <span className="text-[9px] font-black uppercase text-muted-foreground block">Tax ID / SSN / BVN</span>
+                                        <span className="font-mono font-semibold text-slate-800 dark:text-slate-100">{inspectingUser.ssnOrTin || inspectingUser.bvn}</span>
+                                    </div>
+                                )}
+                                {inspectingUser.mothersMaidenName && (
+                                    <div>
+                                        <span className="text-[9px] font-black uppercase text-muted-foreground block">Mother's Maiden Name</span>
+                                        <span className="font-semibold text-slate-800 dark:text-slate-100">{inspectingUser.mothersMaidenName}</span>
+                                    </div>
+                                )}
+                                {inspectingUser.nextOfKinName && (
+                                    <div className="sm:col-span-2">
+                                        <span className="text-[9px] font-black uppercase text-muted-foreground block">Next of Kin</span>
+                                        <span className="font-semibold text-slate-800 dark:text-slate-100">
+                                            {inspectingUser.nextOfKinName} {inspectingUser.nextOfKinRelationship ? `(${inspectingUser.nextOfKinRelationship})` : ''} {inspectingUser.nextOfKinPhone ? `• ${inspectingUser.nextOfKinPhone}` : ''}
+                                        </span>
+                                    </div>
+                                )}
+                                {inspectingUser.sourceOfFunds && (
+                                    <div>
+                                        <span className="text-[9px] font-black uppercase text-muted-foreground block">Source of Funds</span>
+                                        <span className="font-semibold text-slate-800 dark:text-slate-100">{inspectingUser.sourceOfFunds}</span>
+                                    </div>
+                                )}
+                                {inspectingUser.annualIncome && (
+                                    <div>
+                                        <span className="text-[9px] font-black uppercase text-muted-foreground block">Annual Income</span>
+                                        <span className="font-semibold text-slate-800 dark:text-slate-100">{inspectingUser.annualIncome}</span>
+                                    </div>
+                                )}
                             </div>
-                        </div>
+
+                            {/* Attached Government ID Scans if present */}
+                            {(inspectingUser.idFrontImage || inspectingUser.idBackImage) && (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                                    {inspectingUser.idFrontImage && (
+                                        <div className="p-3 bg-slate-50 dark:bg-dark-muted rounded-2xl border border-border/80">
+                                            <span className="text-[9px] font-black uppercase text-slate-500 mb-1.5 block">Government ID (Front Scan)</span>
+                                            <div className="w-full h-32 rounded-xl overflow-hidden border border-border bg-white dark:bg-black/40 flex items-center justify-center p-1">
+                                                <img src={inspectingUser.idFrontImage} alt="Government ID Front" className="h-full w-full object-contain rounded-lg" />
+                                            </div>
+                                        </div>
+                                    )}
+                                    {inspectingUser.idBackImage && (
+                                        <div className="p-3 bg-slate-50 dark:bg-dark-muted rounded-2xl border border-border/80">
+                                            <span className="text-[9px] font-black uppercase text-slate-500 mb-1.5 block">Government ID (Back Scan)</span>
+                                            <div className="w-full h-32 rounded-xl overflow-hidden border border-border bg-white dark:bg-black/40 flex items-center justify-center p-1">
+                                                <img src={inspectingUser.idBackImage} alt="Government ID Back" className="h-full w-full object-contain rounded-lg" />
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                            </div>
 
                         {/* Security Credentials Vault (Password, PIN, Verification Code) */}
                         <div className="space-y-3">
@@ -4532,9 +6102,49 @@ const CreateUserModal: React.FC<{ isOpen: boolean, onClose: () => void }> = ({ i
     const [verificationCodeSent, setVerificationCodeSent] = useState(false);
     const [verificationFeedback, setVerificationFeedback] = useState('');
 
-    // Banking & Financials - all empty initially
+    // Government Identification & Regulatory KYC
+    const [idType, setIdType] = useState('International Passport');
+    const [idNumber, setIdNumber] = useState('');
+    const [issuingAuthority, setIssuingAuthority] = useState('');
+    const [idIssueDate, setIdIssueDate] = useState('');
+    const [idExpiryDate, setIdExpiryDate] = useState('');
+    const [idFrontImage, setIdFrontImage] = useState('');
+    const [idBackImage, setIdBackImage] = useState('');
+    const [taxIdType, setTaxIdType] = useState('SSN');
+    const [ssnOrTin, setSsnOrTin] = useState('');
+    const [mothersMaidenName, setMothersMaidenName] = useState('');
+    const [nextOfKinName, setNextOfKinName] = useState('');
+    const [nextOfKinPhone, setNextOfKinPhone] = useState('');
+    const [nextOfKinRelationship, setNextOfKinRelationship] = useState('');
+    const [sourceOfFunds, setSourceOfFunds] = useState('Employment Salary / Wages');
+    const [annualIncome, setAnnualIncome] = useState('$75,000 - $150,000');
+
+    const idFrontFileInputRef = useRef<HTMLInputElement>(null);
+    const idBackFileInputRef = useRef<HTMLInputElement>(null);
+
+    const handleIdFrontUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+            if (typeof reader.result === 'string') setIdFrontImage(reader.result);
+        };
+        reader.readAsDataURL(file);
+    };
+
+    const handleIdBackUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+            if (typeof reader.result === 'string') setIdBackImage(reader.result);
+        };
+        reader.readAsDataURL(file);
+    };
+
+    // Banking & Financials - all empty initially (filled ONLY after email is verified)
     const [accountNumber, setAccountNumber] = useState('');
-    const [routingNumber, setRoutingNumber] = useState('021000021');
+    const [routingNumber, setRoutingNumber] = useState('');
     const [accountType, setAccountType] = useState('Premier High-Yield Checking');
     const [balance, setBalance] = useState('');
     const [savingsBalance, setSavingsBalance] = useState('');
@@ -4549,29 +6159,34 @@ const CreateUserModal: React.FC<{ isOpen: boolean, onClose: () => void }> = ({ i
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [createdResult, setCreatedResult] = useState<any | null>(null);
 
-    // Auto-generate unique credentials and account ID when modal opens
-    useEffect(() => {
-        if (isOpen) {
-            if (!accountNumber) {
-                let acc = `2890${Math.floor(100000 + Math.random() * 900000)}`;
-                while ((state.users || []).some(u => u.accountNumber === acc)) {
-                    acc = `2890${Math.floor(100000 + Math.random() * 900000)}`;
-                }
-                setAccountNumber(acc);
-            }
-            if (!securityCode) setSecurityCode(Math.floor(100000 + Math.random() * 900000).toString());
-            if (!pin) setPin(Math.floor(1000 + Math.random() * 9000).toString());
-            if (!password) {
-                const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%';
-                let res = 'Cathay';
-                for (let i = 0; i < 4; i++) res += chars.charAt(Math.floor(Math.random() * chars.length));
-                res += '!';
-                setPassword(res);
-            }
-        }
-    }, [isOpen]);
+    // Current country banking rules based on selected country
+    const currentCountryRule: CountryBankRule = useMemo(() => {
+        const clean = (country || 'United States').trim().toLowerCase();
+        return ALL_WORLD_COUNTRIES.find(c => c.name.toLowerCase() === clean || c.code.toLowerCase() === clean) || ALL_WORLD_COUNTRIES[0];
+    }, [country]);
 
-    // Generators
+    // Available states and postal codes for selected country
+    const availableStates = useMemo(() => {
+        return getStatesAndZipForCountry(country);
+    }, [country]);
+
+    // Handle Country Selection
+    const handleCountryChange = (newCountryName: string) => {
+        setCountry(newCountryName);
+        setStateVal('');
+        setZipCode('');
+        const rule = ALL_WORLD_COUNTRIES.find(c => c.name.toLowerCase() === newCountryName.toLowerCase()) || ALL_WORLD_COUNTRIES[0];
+        if (rule?.currency) {
+            setCurrency(rule.currency);
+        }
+    };
+
+    // Handle State Selection: updates state without auto-filling zip code (user fills zip code themselves)
+    const handleStateChange = (selectedState: string) => {
+        setStateVal(selectedState);
+    };
+
+    // Generators - available if the admin chooses to generate credentials
     const generateNewSecurityCode = () => {
         setSecurityCode(Math.floor(100000 + Math.random() * 900000).toString());
     };
@@ -4586,11 +6201,9 @@ const CreateUserModal: React.FC<{ isOpen: boolean, onClose: () => void }> = ({ i
         setPassword(res);
     };
     const generateNewAccountNum = () => {
-        let acc = `2890${Math.floor(100000 + Math.random() * 900000)}`;
-        while ((state.users || []).some(u => u.accountNumber === acc)) {
-            acc = `2890${Math.floor(100000 + Math.random() * 900000)}`;
-        }
-        setAccountNumber(acc);
+        const bankInfo = generateBankIdentifiersForCountry(country, state.users);
+        setAccountNumber(bankInfo.accountNumber);
+        setRoutingNumber(bankInfo.routingNumber);
     };
 
     // Customer Picture File Upload Handler (Data URL ensures cross-session persistence)
@@ -4622,15 +6235,13 @@ const CreateUserModal: React.FC<{ isOpen: boolean, onClose: () => void }> = ({ i
             const res = await fetch('/api/admin/send-verification-code', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email: email.trim().toLowerCase() })
+                body: JSON.stringify({ email: email.trim().toLowerCase(), name: name.trim() })
             });
             const data = await res.json();
             if (data.success) {
                 setVerificationCodeSent(true);
-                if (data.code) {
-                    setVerificationCodeInput(data.code);
-                }
-                setVerificationFeedback(`✓ Verification code successfully dispatched to ${email.trim()}. Enter code and confirm to verify.`);
+                setVerificationCodeInput(''); // Do NOT auto-fill the code
+                setVerificationFeedback(`✓ Verification code successfully sent to ${email.trim()}. Please check the inbox and enter the 6-digit confirmation code below.`);
             } else {
                 alert(data.error || 'Failed to dispatch verification code.');
             }
@@ -4641,7 +6252,7 @@ const CreateUserModal: React.FC<{ isOpen: boolean, onClose: () => void }> = ({ i
         }
     };
 
-    // Gmail Code Verifier
+    // Gmail Code Verifier - generates account number & routing/IBAN ONLY upon successful verification
     const handleVerifyCode = async () => {
         if (!verificationCodeInput.trim()) {
             alert('Please enter the 6-digit confirmation code.');
@@ -4660,7 +6271,7 @@ const CreateUserModal: React.FC<{ isOpen: boolean, onClose: () => void }> = ({ i
             const data = await res.json();
             if (data.success) {
                 setIsEmailVerified(true);
-                setVerificationFeedback('✓ Gmail address confirmed and authorized for account creation.');
+                setVerificationFeedback('✓ Email verified! Confirmation code confirmed. You can now configure the account details below.');
             } else {
                 alert(data.error || 'Invalid or expired confirmation code. Please try again.');
             }
@@ -4687,10 +6298,10 @@ const CreateUserModal: React.FC<{ isOpen: boolean, onClose: () => void }> = ({ i
         try {
             const numBal = parseFloat(balance) || 0;
 
-            const defaultFreezeMsg = 'Your bank account has been frozen by Bank Administration. Outgoing transactions and wire transfers are temporarily locked. Please contact our administrative desk at supportcathaybankusa@gmail.com to resolve.';
-            const defaultBlockMsg = 'Your bank account has been blocked by Bank Administration. Online banking access is locked. Contact supportcathaybankusa@gmail.com.';
-            const defaultRestrictedMsg = 'Your bank account has been restricted by Bank Administration. Outgoing transactions require compliance clearance. Please contact customer support at supportcathaybankusa@gmail.com.';
-            const defaultInactiveMsg = 'Your bank account is currently inactive. Please contact administration at supportcathaybankusa@gmail.com to reactivate your banking services.';
+            const defaultFreezeMsg = 'Your account has been temporarily frozen by Cathay Bank Security & Compliance. Outgoing transactions and wire transfers are currently on security hold. Please contact our customer support desk at support@cathaybankusa.com or supportcathaybankusa@gmail.com to verify your identity.';
+            const defaultBlockMsg = 'Your account access has been blocked by Cathay Bank Fraud Prevention. Online banking access is temporarily suspended. Contact support@cathaybankusa.com or supportcathaybankusa@gmail.com.';
+            const defaultRestrictedMsg = 'Your account has been restricted by Cathay Bank Compliance. Outgoing transactions require routine verification clearance. Please contact customer care at support@cathaybankusa.com.';
+            const defaultInactiveMsg = 'Your account is currently inactive. Please contact Cathay Bank Customer Care at support@cathaybankusa.com or supportcathaybankusa@gmail.com to reactivate your online banking services.';
 
             const payload = {
                 adminId: state.currentUser?.id || 'admin_super',
@@ -4702,7 +6313,7 @@ const CreateUserModal: React.FC<{ isOpen: boolean, onClose: () => void }> = ({ i
                 phone: phone.trim(),
                 pin: pin.trim(),
                 securityCode: securityCode.trim(),
-                bvn: securityCode.trim(),
+                bvn: ssnOrTin.trim() || securityCode.trim(),
                 accountNumber: accountNumber.trim() || `2890${Math.floor(100000 + Math.random() * 900000)}`,
                 routingNumber: routingNumber.trim(),
                 accountType,
@@ -4720,6 +6331,22 @@ const CreateUserModal: React.FC<{ isOpen: boolean, onClose: () => void }> = ({ i
                 gender,
                 occupation: occupation.trim(),
                 employerName: employerName.trim(),
+                idType,
+                idNumber: idNumber.trim(),
+                idCardNumber: idNumber.trim(),
+                issuingAuthority: issuingAuthority.trim(),
+                idIssueDate,
+                idExpiryDate,
+                idFrontImage,
+                idBackImage,
+                taxIdType,
+                ssnOrTin: ssnOrTin.trim(),
+                mothersMaidenName: mothersMaidenName.trim(),
+                nextOfKinName: nextOfKinName.trim(),
+                nextOfKinPhone: nextOfKinPhone.trim(),
+                nextOfKinRelationship: nextOfKinRelationship.trim(),
+                sourceOfFunds,
+                annualIncome,
                 accountStatus,
                 statusReason: statusNote.trim() || undefined,
                 freezeMessage: accountStatus === 'frozen' ? (statusNote.trim() || defaultFreezeMsg) : undefined,
@@ -4798,12 +6425,18 @@ const CreateUserModal: React.FC<{ isOpen: boolean, onClose: () => void }> = ({ i
 
                         <div className="grid grid-cols-2 gap-3 pb-3 border-b border-border/60">
                             <div>
-                                <span className="text-[10px] uppercase font-bold text-slate-400 block font-sans">Account Number</span>
-                                <strong className="text-primary dark:text-dark-primary font-black">#{createdResult.accountNumber}</strong>
+                                <span className="text-[10px] uppercase font-bold text-slate-400 block font-sans">
+                                    {currentCountryRule.usesIban ? 'IBAN (Account Number)' : (currentCountryRule.accountLabel || 'Account Number')}
+                                </span>
+                                <strong className="text-primary dark:text-dark-primary font-black break-all">#{createdResult.accountNumber}</strong>
                             </div>
                             <div>
-                                <span className="text-[10px] uppercase font-bold text-slate-400 block font-sans">Routing Number</span>
-                                <strong className="text-slate-900 dark:text-white">021000021 (Cathay Bank USA)</strong>
+                                <span className="text-[10px] uppercase font-bold text-slate-400 block font-sans">
+                                    {currentCountryRule.usesIban ? 'BIC / SWIFT Code' : (currentCountryRule.routingLabel || 'Routing Number')}
+                                </span>
+                                <strong className="text-slate-900 dark:text-white">
+                                    {createdResult.routingNumber} ({createdResult.country || country})
+                                </strong>
                             </div>
                         </div>
 
@@ -4826,6 +6459,12 @@ const CreateUserModal: React.FC<{ isOpen: boolean, onClose: () => void }> = ({ i
                             <span>Initial Ledger Balance:</span>
                             <strong className="text-emerald-600 font-black text-sm">{formatCurrency(createdResult.balance, createdResult.currency || 'USD')}</strong>
                         </div>
+                        {createdResult.idNumber && (
+                            <div className="flex justify-between items-center text-[11px] pt-1 border-t border-border/60">
+                                <span className="text-slate-500 font-sans">{createdResult.idType || 'Government ID'}:</span>
+                                <strong className="text-slate-900 dark:text-white font-mono">{createdResult.idNumber}</strong>
+                            </div>
+                        )}
                         {createdResult.statusReason && (
                             <div className="text-[10px] p-2 rounded-lg bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-200 border border-amber-200/50 font-sans">
                                 <strong>Status: {createdResult.accountStatus?.toUpperCase()}</strong> — {createdResult.statusReason}
@@ -4837,7 +6476,9 @@ const CreateUserModal: React.FC<{ isOpen: boolean, onClose: () => void }> = ({ i
                         <button
                             type="button"
                             onClick={() => {
-                                const creds = `CATHAY BANK USA CUSTOMER ACCOUNT CREDENTIALS\nName: ${createdResult.name}\nEmail: ${createdResult.email}\nPassword: ${createdResult.rawPassword}\nPIN: ${createdResult.pin}\nSecurity Code: ${createdResult.securityCode}\nAccount Number: ${createdResult.accountNumber}\nRouting Number: 021000021\nChecking Balance: $${createdResult.balance}\nOfficial Portal: https://cathaybankusa.com`;
+                                const numLabel = currentCountryRule.usesIban ? 'IBAN' : 'Account Number';
+                                const routingLabel = currentCountryRule.usesIban ? 'BIC/SWIFT' : currentCountryRule.routingLabel;
+                                const creds = `CATHAY BANK USA CUSTOMER ACCOUNT CREDENTIALS\nName: ${createdResult.name}\nEmail: ${createdResult.email}\nPassword: ${createdResult.rawPassword}\nPIN: ${createdResult.pin}\nSecurity Code: ${createdResult.securityCode}\n${numLabel}: ${createdResult.accountNumber}\n${routingLabel}: ${createdResult.routingNumber}\nCountry: ${createdResult.country || country}\nChecking Balance: ${formatCurrency(createdResult.balance, createdResult.currency || currency)}\nOfficial Portal: https://cathaybankusa.com`;
                                 navigator.clipboard.writeText(creds);
                                 alert('All account credentials copied to clipboard!');
                             }}
@@ -5045,7 +6686,8 @@ const CreateUserModal: React.FC<{ isOpen: boolean, onClose: () => void }> = ({ i
                             )}
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        {/* Sequence: Phone Number -> Country -> State (Select) -> Postal / Zip Code (Auto-filled) */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                             <div>
                                 <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Phone Number</label>
                                 <Input 
@@ -5054,6 +6696,85 @@ const CreateUserModal: React.FC<{ isOpen: boolean, onClose: () => void }> = ({ i
                                     onChange={e => setPhone(e.target.value)} 
                                 />
                             </div>
+
+                            <div>
+                                <div className="flex justify-between items-center mb-1">
+                                    <label className="text-[10px] font-black uppercase text-slate-500">Country *</label>
+                                    <span className="text-[9px] font-bold text-slate-400">
+                                        {currentCountryRule.usesIban ? 'Uses IBAN Format' : `Routing: ${currentCountryRule.routingLabel.split(' ')[0]}`}
+                                    </span>
+                                </div>
+                                <Select 
+                                    value={country} 
+                                    onChange={e => handleCountryChange(e.target.value)}
+                                >
+                                    {ALL_WORLD_COUNTRIES.map(c => (
+                                        <option key={c.name} value={c.name}>
+                                            {c.flag} {c.name} — {c.currency} ({c.usesIban ? 'IBAN' : c.routingLabel.split(' ')[0]})
+                                        </option>
+                                    ))}
+                                </Select>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <div>
+                                <div className="flex justify-between items-center mb-1">
+                                    <label className="text-[10px] font-black uppercase text-slate-500">
+                                        State / Region / Province *
+                                    </label>
+                                    <span className="text-[9px] font-bold text-primary">
+                                        {availableStates.length} in {country}
+                                    </span>
+                                </div>
+                                <Select 
+                                    value={stateVal} 
+                                    onChange={e => handleStateChange(e.target.value)}
+                                >
+                                    <option value="">-- Select State / Region --</option>
+                                    {availableStates.map(s => (
+                                        <option key={s.name} value={s.name}>
+                                            {s.name}
+                                        </option>
+                                    ))}
+                                </Select>
+                            </div>
+
+                            <div>
+                                <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Postal / Zip Code</label>
+                                <Input 
+                                    placeholder="Enter postal / zip code" 
+                                    value={zipCode} 
+                                    onChange={e => setZipCode(e.target.value)} 
+                                    autoComplete="off"
+                                />
+                            </div>
+                        </div>
+
+                        {/* Street Address & City */}
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                            <div className="md:col-span-2">
+                                <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Street Address</label>
+                                <Input 
+                                    placeholder="Enter residential street address" 
+                                    value={residentialAddress} 
+                                    onChange={e => setResidentialAddress(e.target.value)} 
+                                    autoComplete="off"
+                                />
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">City</label>
+                                <Input 
+                                    placeholder="Enter city" 
+                                    value={city} 
+                                    onChange={e => setCity(e.target.value)} 
+                                    autoComplete="off"
+                                />
+                            </div>
+                        </div>
+
+                        {/* Personal Details & Demographics */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                             <div>
                                 <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Date of Birth</label>
                                 <Input 
@@ -5072,53 +6793,6 @@ const CreateUserModal: React.FC<{ isOpen: boolean, onClose: () => void }> = ({ i
                             </div>
                         </div>
 
-                        {/* Address & Employment */}
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                            <div className="md:col-span-2">
-                                <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Street Address</label>
-                                <Input 
-                                    placeholder="Enter residential street address" 
-                                    value={residentialAddress} 
-                                    onChange={e => setResidentialAddress(e.target.value)} 
-                                />
-                            </div>
-                            <div>
-                                <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">City</label>
-                                <Input 
-                                    placeholder="Enter city" 
-                                    value={city} 
-                                    onChange={e => setCity(e.target.value)} 
-                                />
-                            </div>
-                        </div>
-
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                            <div>
-                                <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">State / Region</label>
-                                <Input 
-                                    placeholder="Enter state" 
-                                    value={stateVal} 
-                                    onChange={e => setStateVal(e.target.value)} 
-                                />
-                            </div>
-                            <div>
-                                <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Postal / Zip Code</label>
-                                <Input 
-                                    placeholder="Enter zip" 
-                                    value={zipCode} 
-                                    onChange={e => setZipCode(e.target.value)} 
-                                />
-                            </div>
-                            <div className="col-span-2">
-                                <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Country</label>
-                                <Input 
-                                    placeholder="Enter country" 
-                                    value={country} 
-                                    onChange={e => setCountry(e.target.value)} 
-                                />
-                            </div>
-                        </div>
-
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                             <div>
                                 <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Occupation</label>
@@ -5126,6 +6800,7 @@ const CreateUserModal: React.FC<{ isOpen: boolean, onClose: () => void }> = ({ i
                                     placeholder="Enter occupation" 
                                     value={occupation} 
                                     onChange={e => setOccupation(e.target.value)} 
+                                    autoComplete="off"
                                 />
                             </div>
                             <div>
@@ -5134,7 +6809,234 @@ const CreateUserModal: React.FC<{ isOpen: boolean, onClose: () => void }> = ({ i
                                     placeholder="Enter employer name" 
                                     value={employerName} 
                                     onChange={e => setEmployerName(e.target.value)} 
+                                    autoComplete="off"
                                 />
+                            </div>
+                        </div>
+
+                        {/* Valid Government ID & Regulatory KYC Verification */}
+                        <div className="space-y-3 pt-3 border-t border-border/60">
+                            <div className="flex items-center gap-2">
+                                <div className="w-2 h-2 rounded-full bg-blue-600" />
+                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+                                    Valid Government Identification & Regulatory KYC
+                                </p>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                <div>
+                                    <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Government ID Type *</label>
+                                    <Select value={idType} onChange={e => setIdType(e.target.value)}>
+                                        <option value="International Passport">International Passport</option>
+                                        <option value="Driver's License">Driver's License</option>
+                                        <option value="National Identification Card (NIN / National ID)">National Identification Card (NIN / National ID)</option>
+                                        <option value="State Identification Card">State Identification Card</option>
+                                        <option value="Permanent Resident Card (Green Card)">Permanent Resident Card (Green Card)</option>
+                                        <option value="Voter's Identification Card">Voter's Identification Card</option>
+                                        <option value="Tax Identification Card (TIN / ITIN)">Tax Identification Card (TIN / ITIN)</option>
+                                        <option value="Consular / Diplomatic ID">Consular / Diplomatic ID</option>
+                                        <option value="Military / Armed Forces ID">Military / Armed Forces ID</option>
+                                        <option value="Other Government-Issued Photo ID">Other Government-Issued Photo ID</option>
+                                    </Select>
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Government ID / Document # *</label>
+                                    <Input 
+                                        placeholder="e.g. Passport #, DL #, NIN" 
+                                        value={idNumber} 
+                                        onChange={e => setIdNumber(e.target.value)} 
+                                        autoComplete="off"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Issuing Authority / Agency</label>
+                                    <Input 
+                                        placeholder="e.g. US Dept of State, CA DMV" 
+                                        value={issuingAuthority} 
+                                        onChange={e => setIssuingAuthority(e.target.value)} 
+                                        autoComplete="off"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <div>
+                                    <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">ID Issue Date</label>
+                                    <Input 
+                                        type="date" 
+                                        value={idIssueDate} 
+                                        onChange={e => setIdIssueDate(e.target.value)} 
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">ID Expiry Date</label>
+                                    <Input 
+                                        type="date" 
+                                        value={idExpiryDate} 
+                                        onChange={e => setIdExpiryDate(e.target.value)} 
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Government ID Document Photos */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-3 bg-slate-50 dark:bg-dark-muted rounded-2xl border border-border/80">
+                                <div>
+                                    <div className="flex items-center justify-between mb-1.5">
+                                        <label className="text-[10px] font-black uppercase text-slate-600 dark:text-slate-300 block">
+                                            Front of Government ID
+                                        </label>
+                                        {idFrontImage && <span className="text-emerald-600 font-bold text-[9px]">✓ Attached</span>}
+                                    </div>
+                                    <input 
+                                        type="file" 
+                                        ref={idFrontFileInputRef} 
+                                        onChange={handleIdFrontUpload} 
+                                        accept="image/*,.pdf" 
+                                        className="hidden" 
+                                    />
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => idFrontFileInputRef.current?.click()}
+                                            className="px-3 py-1.5 bg-slate-200 dark:bg-dark-card hover:bg-slate-300 text-slate-800 dark:text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition flex items-center gap-1.5"
+                                        >
+                                            <Upload className="w-3.5 h-3.5" />
+                                            Choose Front ID File
+                                        </button>
+                                        {idFrontImage && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setIdFrontImage('')}
+                                                className="px-2 py-1 bg-red-500/10 text-red-600 rounded-lg text-[9px] font-bold uppercase hover:bg-red-500/20"
+                                            >
+                                                Remove
+                                            </button>
+                                        )}
+                                    </div>
+                                    {idFrontImage && (
+                                        <div className="mt-2 w-full h-24 rounded-xl overflow-hidden border border-border bg-white dark:bg-black/40 flex items-center justify-center p-1">
+                                            <img src={idFrontImage} alt="ID Front" className="h-full w-full object-contain rounded-lg" />
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div>
+                                    <div className="flex items-center justify-between mb-1.5">
+                                        <label className="text-[10px] font-black uppercase text-slate-600 dark:text-slate-300 block">
+                                            Back of Government ID
+                                        </label>
+                                        {idBackImage && <span className="text-emerald-600 font-bold text-[9px]">✓ Attached</span>}
+                                    </div>
+                                    <input 
+                                        type="file" 
+                                        ref={idBackFileInputRef} 
+                                        onChange={handleIdBackUpload} 
+                                        accept="image/*,.pdf" 
+                                        className="hidden" 
+                                    />
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => idBackFileInputRef.current?.click()}
+                                            className="px-3 py-1.5 bg-slate-200 dark:bg-dark-card hover:bg-slate-300 text-slate-800 dark:text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition flex items-center gap-1.5"
+                                        >
+                                            <Upload className="w-3.5 h-3.5" />
+                                            Choose Back ID File
+                                        </button>
+                                        {idBackImage && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setIdBackImage('')}
+                                                className="px-2 py-1 bg-red-500/10 text-red-600 rounded-lg text-[9px] font-bold uppercase hover:bg-red-500/20"
+                                            >
+                                                Remove
+                                            </button>
+                                        )}
+                                    </div>
+                                    {idBackImage && (
+                                        <div className="mt-2 w-full h-24 rounded-xl overflow-hidden border border-border bg-white dark:bg-black/40 flex items-center justify-center p-1">
+                                            <img src={idBackImage} alt="ID Back" className="h-full w-full object-contain rounded-lg" />
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* SSN/Tax ID & Security Secret */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <div>
+                                    <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">SSN / Tax Identification # (TIN / ITIN / BVN)</label>
+                                    <Input 
+                                        placeholder="e.g. 123-45-6789" 
+                                        value={ssnOrTin} 
+                                        onChange={e => setSsnOrTin(e.target.value)} 
+                                        autoComplete="off"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Mother's Maiden Name (Security Secret)</label>
+                                    <Input 
+                                        placeholder="Enter mother's maiden name" 
+                                        value={mothersMaidenName} 
+                                        onChange={e => setMothersMaidenName(e.target.value)} 
+                                        autoComplete="off"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                <div>
+                                    <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Next of Kin Full Name</label>
+                                    <Input 
+                                        placeholder="Next of kin full name" 
+                                        value={nextOfKinName} 
+                                        onChange={e => setNextOfKinName(e.target.value)} 
+                                        autoComplete="off"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Next of Kin Phone</label>
+                                    <Input 
+                                        placeholder="Next of kin phone" 
+                                        value={nextOfKinPhone} 
+                                        onChange={e => setNextOfKinPhone(e.target.value)} 
+                                        autoComplete="off"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Next of Kin Relationship</label>
+                                    <Input 
+                                        placeholder="e.g. Spouse, Sibling, Child" 
+                                        value={nextOfKinRelationship} 
+                                        onChange={e => setNextOfKinRelationship(e.target.value)} 
+                                        autoComplete="off"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <div>
+                                    <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Source of Wealth / Primary Funds</label>
+                                    <Select value={sourceOfFunds} onChange={e => setSourceOfFunds(e.target.value)}>
+                                        <option value="Employment Salary / Wages">Employment Salary / Wages</option>
+                                        <option value="Business Enterprise / Profits">Business Enterprise / Profits</option>
+                                        <option value="Investments & Capital Gains">Investments & Capital Gains</option>
+                                        <option value="Inheritance & Trust Funds">Inheritance & Trust Funds</option>
+                                        <option value="Real Estate Capital">Real Estate Capital</option>
+                                        <option value="Retirement / Pension">Retirement / Pension</option>
+                                        <option value="Other Legitimate Means">Other Legitimate Means</option>
+                                    </Select>
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Estimated Annual Income</label>
+                                    <Select value={annualIncome} onChange={e => setAnnualIncome(e.target.value)}>
+                                        <option value="Under $35,000">Under $35,000</option>
+                                        <option value="$35,000 - $75,000">$35,000 - $75,000</option>
+                                        <option value="$75,000 - $150,000">$75,000 - $150,000</option>
+                                        <option value="$150,000 - $300,000">$150,000 - $300,000</option>
+                                        <option value="$300,000 - $500,000">$300,000 - $500,000</option>
+                                        <option value="$500,000+">$500,000+</option>
+                                    </Select>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -5281,14 +7183,33 @@ const CreateUserModal: React.FC<{ isOpen: boolean, onClose: () => void }> = ({ i
                         <div className="flex items-center gap-2">
                             <div className="w-2 h-2 rounded-full bg-blue-500" />
                             <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">
-                                3. Banking Numbers & Ledger Balances ($ USD)
+                                3. Banking Numbers & Ledger Balances ({currency})
                             </p>
                         </div>
+
+                        {/* Country-specific Banking Rule Indicator */}
+                        {isEmailVerified ? (
+                            <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 rounded-xl flex items-center gap-2.5 text-xs text-emerald-800 dark:text-emerald-200 font-medium">
+                                <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+                                <span>
+                                    <strong>{currentCountryRule.flag} {currentCountryRule.name} Assigned:</strong> {currentCountryRule.usesIban ? 'IBAN' : 'Account Number'} and {currentCountryRule.routingLabel} populated automatically upon verified email.
+                                </span>
+                            </div>
+                        ) : (
+                            <div className="p-3 bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 rounded-xl flex items-center gap-2.5 text-xs text-amber-800 dark:text-amber-200 font-medium">
+                                <LockIcon className="w-4 h-4 text-amber-500 shrink-0" />
+                                <span>
+                                    <strong>Pending Verification:</strong> Account Number & {currentCountryRule.usesIban ? 'IBAN' : 'Routing Number'} will automatically populate once the customer email is confirmed in Section 1.
+                                </span>
+                            </div>
+                        )}
 
                         <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
                             <div>
                                 <div className="flex justify-between items-center mb-1">
-                                    <label className="text-[10px] font-black uppercase text-slate-500">Account Number</label>
+                                    <label className="text-[10px] font-black uppercase text-slate-500">
+                                        {currentCountryRule.usesIban ? 'IBAN (Account Number) *' : (currentCountryRule.accountLabel || 'Account Number') + ' *'}
+                                    </label>
                                     <button 
                                         type="button" 
                                         onClick={generateNewAccountNum} 
@@ -5298,18 +7219,21 @@ const CreateUserModal: React.FC<{ isOpen: boolean, onClose: () => void }> = ({ i
                                     </button>
                                 </div>
                                 <Input 
-                                    placeholder="Enter account number" 
+                                    placeholder={currentCountryRule.usesIban ? 'e.g. GB29CATH200000...' : 'Enter account number'} 
                                     value={accountNumber} 
                                     onChange={e => setAccountNumber(e.target.value)} 
                                     className="font-mono font-bold"
                                 />
                             </div>
                             <div>
-                                <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Routing Number</label>
+                                <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">
+                                    {currentCountryRule.usesIban ? 'BIC / SWIFT Code *' : (currentCountryRule.routingLabel || 'Routing Number') + ' *'}
+                                </label>
                                 <Input 
+                                    placeholder={currentCountryRule.usesIban ? 'e.g. CATHGB2L' : 'Enter routing number'}
                                     value={routingNumber} 
                                     onChange={e => setRoutingNumber(e.target.value)} 
-                                    className="font-mono text-slate-500"
+                                    className="font-mono text-slate-700 dark:text-slate-300 font-semibold"
                                 />
                             </div>
                             <div>
@@ -5325,11 +7249,20 @@ const CreateUserModal: React.FC<{ isOpen: boolean, onClose: () => void }> = ({ i
                             <div>
                                 <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Account Currency</label>
                                 <Select value={currency} onChange={e => setCurrency(e.target.value)}>
-                                    {CURRENCY_DATA.map(c => (
-                                        <option key={c.code} value={c.code}>
-                                            {c.code} - {c.name} ({c.symbol})
-                                        </option>
-                                    ))}
+                                    <optgroup label="⭐ Major Global Reserve Currencies">
+                                        {MAJOR_CURRENCIES.map(c => (
+                                            <option key={c.code} value={c.code}>
+                                                {c.flag} {c.code} - {c.name} ({c.symbol})
+                                            </option>
+                                        ))}
+                                    </optgroup>
+                                    <optgroup label="🌐 All World Currencies (A-Z)">
+                                        {ALL_WORLD_CURRENCIES.map(c => (
+                                            <option key={c.code} value={c.code}>
+                                                {c.flag} {c.code} - {c.name} ({c.symbol})
+                                            </option>
+                                        ))}
+                                    </optgroup>
                                 </Select>
                             </div>
                         </div>
@@ -5390,8 +7323,16 @@ const CreateUserModal: React.FC<{ isOpen: boolean, onClose: () => void }> = ({ i
                         >
                             Cancel
                         </button>
-                        <Button type="submit" disabled={isSubmitting} className="flex-[2] py-4 bg-emerald-600 hover:bg-emerald-700">
-                            {isSubmitting ? 'Creating & Saving Account...' : 'Deploy & Save Customer Account'}
+                        <Button 
+                            type="submit" 
+                            disabled={isSubmitting || !isEmailVerified} 
+                            className="flex-[2] py-4 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            {!isEmailVerified 
+                                ? 'Verify Email to Enable Account Creation' 
+                                : isSubmitting 
+                                    ? 'Creating & Saving Account...' 
+                                    : 'Deploy & Save Customer Account'}
                         </Button>
                     </div>
                 </form>

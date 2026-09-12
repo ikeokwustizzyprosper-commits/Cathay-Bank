@@ -286,7 +286,7 @@ const Dashboard: React.FC = () => {
                                     </span>
                                 </div>
                                 <p className="text-xs text-cyan-100/90 font-medium leading-relaxed">
-                                    {user?.freezeMessage || user?.transferFreezeMessage || "Your bank account has been frozen by Bank Administration. Transfers, outgoing wires, and card payments are temporarily locked until enabled by administration."}
+                                    {user?.freezeMessage || user?.transferFreezeMessage || `Dear ${user?.name || 'Account Holder'}, your Cathay Bank account has been placed under temporary security freeze by Bank Administration. Outgoing wires, external transfers, and card payments are temporarily locked to safeguard your funds until identity clearance is confirmed.`}
                                 </p>
                                 <div className="mt-2.5 pt-2 border-t border-cyan-500/20 flex items-center justify-between text-[10px] text-cyan-300/80 font-bold flex-wrap gap-2">
                                     <span>Direct Resolution Desk: supportcathaybankusa@gmail.com</span>
@@ -320,7 +320,7 @@ const Dashboard: React.FC = () => {
                                     </span>
                                 </div>
                                 <p className="text-xs text-red-100/90 font-medium leading-relaxed">
-                                    {user?.blockMessage || "Your bank account has been blocked by Bank Administration. Access to online banking operations is suspended until enabled by administration."}
+                                    {user?.blockMessage || `Dear ${user?.name || 'Account Holder'}, your online banking profile has been suspended by Bank Administration. Access to online banking operations is temporarily disabled. Please contact our Security Resolution Desk to reactivate your access.`}
                                 </p>
                                 <div className="mt-2.5 pt-2 border-t border-red-500/20 flex items-center justify-between text-[10px] text-red-300/80 font-bold flex-wrap gap-2">
                                     <span>Security Support: supportcathaybankusa@gmail.com</span>
@@ -346,7 +346,7 @@ const Dashboard: React.FC = () => {
                                             <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500"></span>
                                         </span>
                                         <h4 className="text-xs font-black uppercase text-amber-200 tracking-wider">
-                                            Your Bank Account Has Been Restricted
+                                             Your Bank Account Has Been Restricted
                                         </h4>
                                     </div>
                                     <span className="text-[9px] font-black uppercase bg-amber-500/20 border border-amber-400/40 text-amber-200 px-2.5 py-0.5 rounded-full">
@@ -354,7 +354,7 @@ const Dashboard: React.FC = () => {
                                     </span>
                                 </div>
                                 <p className="text-xs text-amber-100/90 font-medium leading-relaxed">
-                                    {user?.restrictionMessage || "Your bank account has been restricted by Bank Administration. Outgoing transfers, withdrawals, and payments are placed on security hold until enabled by administration."}
+                                    {user?.restrictionMessage || `Dear ${user?.name || 'Account Holder'}, administrative restrictions have been placed on your Cathay Bank account. Outgoing transfers and withdrawals are on security hold pending verification.`}
                                 </p>
                                 <div className="mt-2.5 pt-2 border-t border-amber-500/20 flex items-center justify-between text-[10px] text-amber-300/80 font-bold flex-wrap gap-2">
                                     <span>Clearance Desk: supportcathaybankusa@gmail.com</span>
